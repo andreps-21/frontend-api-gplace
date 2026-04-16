@@ -1,0 +1,16 @@
+# Configuração da API para desenvolvimento local
+# Copie este ficheiro para .env.local na raiz do projeto (ou use .env.example como base).
+
+# api-tim em Docker (./docker-start.sh na raiz da API — porta 8080)
+NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
+
+# api-tim com "php artisan serve" na pasta da API (porta 8000 por omissão)
+# NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api/v1
+
+# API em nuvem
+# NEXT_PUBLIC_API_URL=https://api.alpharstelecom.com.br/api/v1
+
+# Instruções:
+# 1. cp .env.example .env.local   (ou copiar este ficheiro para .env.local)
+# 2. Reinicie o servidor: npm run dev
+# 3. CORS: a api-tim deve permitir a origem do Next (ex.: http://localhost:3000)

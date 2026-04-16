@@ -1,0 +1,6 @@
+<!-- Placeholder para logo TIM -->
+<!-- Substitua este arquivo pela logo real: logo-tim.png -->
+<!-- A logo deve ser colocada em: public/images/logo-tim.png -->
+<!-- Dimensões recomendadas: 240x120px ou similar (2:1 ratio) -->
+<!-- Formato: PNG com fundo transparente -->
+<!-- Cores: Azul TIM (#0026d9) e Vermelho TIM (#E30613) -->
