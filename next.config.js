@@ -1,5 +1,12 @@
 const path = require('path')
 
+if (process.env.NODE_ENV === 'production' && !String(process.env.NEXT_PUBLIC_APP_TOKEN || '').trim()) {
+  console.warn(
+    '\n⚠️  [Gplace] NEXT_PUBLIC_APP_TOKEN não definido neste build. O site não envia o header `app` e a API responde 403. ' +
+      'Define em Vercel (valor de stores.app_token) e faz redeploy.\n'
+  )
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Raiz explícita para file tracing: evita o aviso de múltiplos lockfiles quando existe

@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Eye, EyeOff, Loader2, Mail, Lock } from "lucide-react"
 import { useAuth } from "@/lib/auth"
+import { isAppTokenConfigured } from "@/lib/public-env"
 
 export function LoginForm() {
   const router = useRouter()
@@ -124,6 +125,17 @@ export function LoginForm() {
       </CardHeader>
       <CardContent className="p-4 pt-0">
         <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+          {process.env.NODE_ENV === "production" && !isAppTokenConfigured() && (
+            <Alert variant="destructive" className="border-amber-200 bg-amber-50">
+              <AlertCircle className="h-4 w-4 text-amber-800" />
+              <AlertDescription className="text-amber-900 text-sm">
+                O frontend em produção não tem <strong>NEXT_PUBLIC_APP_TOKEN</strong> (Vercel → Environment
+                Variables). Sem o header <code className="text-xs">app</code>, a API responde <strong>403</strong>.
+                Usa o valor de <code className="text-xs">stores.app_token</code> na API e faz{" "}
+                <strong>redeploy</strong>.
+              </AlertDescription>
+            </Alert>
+          )}
           {error && (
             <Alert variant="destructive" className="border-red-200 bg-red-50">
               <AlertCircle className="h-4 w-4" />

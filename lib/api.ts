@@ -1,4 +1,7 @@
 import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
+import { isAppTokenConfigured, PUBLIC_APP_TOKEN } from '@/lib/public-env';
+
+let warnedMissingAppToken = false;
 
 // Configuração base da API
 const LOCAL_API_DEFAULT = 'http://localhost:8005/api/v1';
@@ -249,14 +252,20 @@ class ApiService {
     // Interceptor: token Passport + header `app` (middleware CheckAppHeader na API Laravel)
     this.api.interceptors.request.use(
       (config) => {
-        const appToken = process.env.NEXT_PUBLIC_APP_TOKEN;
+        const appToken = PUBLIC_APP_TOKEN;
         if (appToken) {
           config.headers.set('app', appToken);
-        } else if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-          console.warn(
-            '[api] NEXT_PUBLIC_APP_TOKEN ausente — a API devolve 403 em rotas com middleware `app`. ' +
-              'Define em .env.local o valor de stores.app_token (painel admin ou base de dados).'
-          );
+        } else if (typeof window !== 'undefined' && !warnedMissingAppToken) {
+          warnedMissingAppToken = true;
+          const msg =
+            '[Gplace] NEXT_PUBLIC_APP_TOKEN ausente no build. A API responde 403 (middleware `app`). ' +
+            'No Vercel: Environment Variables → NEXT_PUBLIC_APP_TOKEN = valor de `stores.app_token` (php artisan store:issue-app-token --show). ' +
+            'Depois: Redeploy.';
+          if (process.env.NODE_ENV === 'development') {
+            console.warn(msg);
+          } else {
+            console.error(msg);
+          }
         }
 
         // Sempre buscar o token mais recente do localStorage

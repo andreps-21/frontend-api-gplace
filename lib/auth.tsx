@@ -56,34 +56,47 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     if (!isInitialized) return;
 
+    let cancelled = false;
+
     const loadUser = async () => {
       try {
         setIsLoading(true);
         const token = apiService.getToken();
-        if (token) {
-          const response = await apiService.getProfile();
-          setUser(response.data);
-        } else {
-          setUser(null);
+        if (!token) {
+          if (!cancelled) setUser(null);
+          return;
         }
-      } catch {
+        const response = await apiService.getProfile();
+        if (!cancelled) setUser(response.data);
+      } catch (e) {
+        if (cancelled) return;
+        const err = e as ApiError;
+        const status = err.status;
+        if (status === 403) {
+          console.error(
+            '[auth] 403 na API — em produção falta ou está errado NEXT_PUBLIC_APP_TOKEN (header `app` = stores.app_token).',
+            err.message
+          );
+        }
+        if (status === 401) {
+          apiService.clearToken();
+          setUser(null);
+          return;
+        }
         apiService.clearToken();
         setUser(null);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
-    loadUser();
+    void loadUser();
 
-    // Listener para mudanças no localStorage (sincronização entre abas)
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'auth_token') {
         if (e.newValue) {
-          // Token foi adicionado em outra aba
-          loadUser();
+          void loadUser();
         } else {
-          // Token foi removido em outra aba
           setUser(null);
         }
       }
@@ -92,6 +105,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     window.addEventListener('storage', handleStorageChange);
 
     return () => {
+      cancelled = true;
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [isInitialized]);
