@@ -90,8 +90,14 @@ export function LoginForm() {
       } else {
         localStorage.removeItem("rememberEmail")
       }
-      
-      router.push("/dashboard")
+
+      // Navegação completa (novo documento) evita misturar HTML/RSC de um deploy com chunks
+      // `/_next/static/...` de outro — causa típica de 404 em scripts e redirect ao login.
+      if (typeof window !== "undefined") {
+        window.location.assign("/dashboard")
+        return
+      }
+      router.replace("/dashboard")
     } catch (error) {
       // Erro já é tratado pelo hook useAuth
     }

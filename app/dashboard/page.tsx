@@ -106,14 +106,14 @@ export default function DashboardPage() {
     const salesParams: Record<string, string | number> = {
       date_from: firstDay,
       date_to: lastDay,
-      page: 1,
+        page: 1,
       per_page: 10000,
-    }
-
+      }
+      
     if (user.role === "vendedor") {
-      salesParams.seller_id = user.id
+        salesParams.seller_id = user.id
       if (user.establishment_id) {
-        salesParams.establishment_id = user.establishment_id
+          salesParams.establishment_id = user.establishment_id
       }
     } else if (user.role === "gerente" && user.establishment_id) {
       salesParams.establishment_id = user.establishment_id
@@ -256,8 +256,8 @@ export default function DashboardPage() {
           } catch {
             setEstablishments([{ id: user.establishment_id, name: "Minha loja" }])
           }
-        } else {
-          setEstablishments([])
+          } else {
+            setEstablishments([])
         }
       } catch {
         setEstablishments([])
@@ -276,114 +276,114 @@ export default function DashboardPage() {
   }, [user, loadDashboard])
 
   const statsData = [
-    {
-      title: "Vendas Hoje",
+  {
+    title: "Vendas Hoje",
       value: loading ? "..." : stats.vendasHoje.toString(),
       change: loading
         ? "..."
         : (() => {
             if (stats.variacaoVendas > 0) return `+${stats.variacaoVendas.toFixed(1)}%`
             if (stats.variacaoVendas < 0) return `${stats.variacaoVendas.toFixed(1)}%`
-            return "0%"
-          })(),
-      icon: ShoppingCart,
-      color: "text-blue-600",
-    },
-    {
-      title: "Faturamento do Mês",
+          return "0%"
+      })(),
+    icon: ShoppingCart,
+    color: "text-blue-600",
+  },
+  {
+    title: "Faturamento do Mês",
       value: loading
         ? "..."
         : stats.faturamentoMes.toLocaleString("pt-BR", { minimumFractionDigits: 2 }),
       change: "Mensal",
-      icon: Coins,
-      color: "text-green-600",
-    },
-    {
-      title: "Meta do Mês",
+    icon: Coins,
+    color: "text-green-600",
+  },
+  {
+    title: "Meta do Mês",
       value: "0%",
       change: "Não definida",
-      icon: Target,
+    icon: Target,
       color: "text-gray-500",
-    },
-    {
-      title: "Vendedores Ativos",
+  },
+  {
+    title: "Vendedores Ativos",
       value: loading ? "..." : stats.vendedoresAtivos.toString(),
       change:
         isGestorLevelRole(user?.role) || user?.role === "gerente"
           ? `${establishments.length} loja(s)`
           : "Sua loja",
-      icon: Users,
-      color: "text-purple-600",
-    },
-    {
-      title: "Faturamento Serviço",
+    icon: Users,
+    color: "text-purple-600",
+  },
+  {
+    title: "Faturamento Serviço",
       value: loading
         ? "..."
         : `R$ ${stats.faturamentoServico.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
       change: loading
         ? "..."
         : (() => {
-            const quantity = stats.quantidadeVendasServico
-            const variation = stats.variacaoServico
+      const quantity = stats.quantidadeVendasServico
+      const variation = stats.variacaoServico
             const variationText =
               variation >= 0 ? `+${variation.toFixed(1)}%` : `${variation.toFixed(1)}%`
             return `${quantity} ${quantity === 1 ? "venda" : "vendas"} • ${variationText}`
-          })(),
-      icon: Wifi,
-      color: "text-blue-600",
-    },
-    {
-      title: "Faturamento Chip",
+    })(),
+    icon: Wifi,
+    color: "text-blue-600",
+  },
+  {
+    title: "Faturamento Chip",
       value: loading
         ? "..."
         : `R$ ${stats.faturamentoChip.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
       change: loading
         ? "..."
         : (() => {
-            const quantity = stats.quantidadeVendasChip
-            const variation = stats.variacaoChip
+      const quantity = stats.quantidadeVendasChip
+      const variation = stats.variacaoChip
             const variationText =
               variation >= 0 ? `+${variation.toFixed(1)}%` : `${variation.toFixed(1)}%`
             return `${quantity} ${quantity === 1 ? "venda" : "vendas"} • ${variationText}`
-          })(),
-      icon: Smartphone,
-      color: "text-green-600",
-    },
-    {
-      title: "Faturamento Aparelho",
+    })(),
+    icon: Smartphone,
+    color: "text-green-600",
+  },
+  {
+    title: "Faturamento Aparelho",
       value: loading
         ? "..."
         : `R$ ${stats.faturamentoAparelho.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
       change: loading
         ? "..."
         : (() => {
-            const quantity = stats.quantidadeVendasAparelho
-            const variation = stats.variacaoAparelho
+      const quantity = stats.quantidadeVendasAparelho
+      const variation = stats.variacaoAparelho
             const variationText =
               variation >= 0 ? `+${variation.toFixed(1)}%` : `${variation.toFixed(1)}%`
             return `${quantity} ${quantity === 1 ? "venda" : "vendas"} • ${variationText}`
-          })(),
-      icon: Smartphone,
-      color: "text-purple-600",
-    },
-    {
-      title: "Faturamento Acessório",
+    })(),
+    icon: Smartphone,
+    color: "text-purple-600",
+  },
+  {
+    title: "Faturamento Acessório",
       value: loading
         ? "..."
         : `R$ ${stats.faturamentoAcessorio.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
       change: loading
         ? "..."
         : (() => {
-            const quantity = stats.quantidadeVendasAcessorio
-            const variation = stats.variacaoAcessorio
+      const quantity = stats.quantidadeVendasAcessorio
+      const variation = stats.variacaoAcessorio
             const variationText =
               variation >= 0 ? `+${variation.toFixed(1)}%` : `${variation.toFixed(1)}%`
             return `${quantity} ${quantity === 1 ? "venda" : "vendas"} • ${variationText}`
-          })(),
-      icon: Headphones,
-      color: "text-orange-600",
-    },
-  ]
+    })(),
+    icon: Headphones,
+    color: "text-orange-600",
+  },
+]
 
   if (loading) {
     return (
@@ -443,21 +443,21 @@ export default function DashboardPage() {
                 const aniversarioHoje = p.day_of_month != null && p.day_of_month === hoje.getDate()
 
                 return (
-                  <li
-                    key={p.id}
-                    className="flex flex-col rounded-lg border border-border/60 bg-background/80 px-3 py-2 text-sm"
-                  >
+                <li
+                  key={p.id}
+                  className="flex flex-col rounded-lg border border-border/60 bg-background/80 px-3 py-2 text-sm"
+                >
                     <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-semibold text-foreground">
                       <span>Dia {p.day_of_month ?? "—"} —</span>
-                      {aniversarioHoje ? (
+                    {aniversarioHoje ? (
                         <Cake className="h-4 w-4 shrink-0 text-pink-500" aria-label="Aniversário hoje" />
-                      ) : null}
-                      <span>{p.name}</span>
-                    </span>
-                    {p.establishment_name ? (
-                      <span className="truncate text-xs text-muted-foreground">{p.establishment_name}</span>
                     ) : null}
-                  </li>
+                    <span>{p.name}</span>
+                  </span>
+                  {p.establishment_name ? (
+                      <span className="truncate text-xs text-muted-foreground">{p.establishment_name}</span>
+                  ) : null}
+                </li>
                 )
               })}
             </ul>
@@ -477,13 +477,13 @@ export default function DashboardPage() {
             <div className="space-y-4">
               {recentSales.length > 0 ? (
                 recentSales.map((sale) => (
-                  <div key={sale.id} className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-foreground">{sale.vendedor}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {sale.produto} • {sale.loja}
-                      </p>
-                    </div>
+                <div key={sale.id} className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-foreground">{sale.vendedor}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {sale.produto} • {sale.loja}
+                    </p>
+                  </div>
                     <div className="font-semibold text-foreground">
                       R${" "}
                       {sale.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
