@@ -8,8 +8,8 @@ import { Toaster } from 'sonner'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'TIM - Gestão Comercial',
-  description: 'Sistema de Gestão Comercial e Operacional para Lojas TIM',
+  title: 'Gplace — Gestão comercial',
+  description: 'Painel de gestão comercial e operacional da loja',
 }
 
 export default function RootLayout({
