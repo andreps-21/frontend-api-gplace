@@ -19,18 +19,16 @@ const pageHostnameIsLocal = () => {
 const getApiBaseUrl = () => {
   const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
 
-  // Site em HTTPS público + env ainda com localhost (erro comum no deploy): ignorar env.
-  if (
-    fromEnv &&
+  // Em site público, ignorar NEXT_PUBLIC_API_URL se ainda apontar para loopback (build com .env local).
+  const envIsUnsafeOnPublicSite =
+    !!fromEnv &&
     typeof window !== 'undefined' &&
     !pageHostnameIsLocal() &&
-    envUrlPointsToLoopback(fromEnv)
-  ) {
-    console.warn(
-      '[Gplace] NEXT_PUBLIC_API_URL aponta para o ambiente local mas a página não é local. ' +
-        'Define no host de produção uma URL HTTPS da API (ex.: https://teu-dominio/api/v1) e faz novo build.'
-    );
-  } else if (fromEnv && !(typeof window !== 'undefined' && !pageHostnameIsLocal() && envUrlPointsToLoopback(fromEnv))) {
+    envUrlPointsToLoopback(fromEnv);
+
+  const shouldUseEnv = Boolean(fromEnv) && !envIsUnsafeOnPublicSite;
+
+  if (shouldUseEnv && fromEnv) {
     if (process.env.NODE_ENV === 'development') {
       console.log('🌐 API URL (env):', fromEnv);
     }
