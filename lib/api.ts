@@ -19,8 +19,22 @@ const pageHostnameIsLocal = () => {
   return h === 'localhost' || h === '127.0.0.1' || /^192\.168\./.test(h);
 };
 
+/** Aceita URL sem esquema (ex.: api....solutions/api/v1) e o alias NEXT_PUBLIC_APP_URL (typo comum no Vercel). */
+function normalizePublicApiUrl(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  let u = raw.trim();
+  if (!u) return undefined;
+  if (!/^https?:\/\//i.test(u)) {
+    u = `https://${u.replace(/^\/+/, '')}`;
+  }
+  return u.replace(/\/$/, '');
+}
+
 const getApiBaseUrl = () => {
-  const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
+  const fromEnv = normalizePublicApiUrl(
+    process.env.NEXT_PUBLIC_API_URL?.trim() ||
+      process.env.NEXT_PUBLIC_APP_URL?.trim()
+  );
 
   // Em site público, ignorar NEXT_PUBLIC_API_URL se ainda apontar para loopback (build com .env local).
   const envIsUnsafeOnPublicSite =
