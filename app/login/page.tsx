@@ -4,30 +4,66 @@ import Image from "next/image"
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex">
+    <div className="flex min-h-dvh flex-col overflow-x-hidden bg-[#ffffff] lg:h-dvh lg:max-h-dvh lg:flex-row lg:overflow-hidden">
       {/* Left Side - Login Form (alinhado ao Blade: resources/views/auth/login.blade.php) */}
-      <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-slate-50 p-8">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <h1 className="mb-3 text-4xl font-bold tracking-tight text-[#2f3a8f] sm:text-5xl">
+      <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-5 sm:px-6 sm:py-6 lg:overflow-hidden lg:py-5">
+        <div className="flex w-full max-w-md shrink-0 flex-col gap-4">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold tracking-tight text-[#2f3a8f] sm:text-4xl">
               Gplace
             </h1>
-            <p className="text-gray-600 text-lg">Gestão Comercial e Ecommerce</p>
-            
-          </div>
-          <LoginForm />
-          
-          {/* Footer */}
-          <div className="mt-8 text-center">
-            <p className="text-sm text-gray-500">
-              Desenvolvido por <a href="https://gooding.solutions/" target="_blank" rel="noopener noreferrer" className="font-medium text-gray-700 hover:text-gray-900 transition-colors">Gooding Solutions</a>
+            <p className="mt-1 text-sm text-gray-600 sm:text-base">
+              Gestão comercial e ecommerce
             </p>
+          </div>
+
+          <LoginForm />
+
+          <div className="space-y-3 text-center">
+            <p className="text-xs text-gray-500 sm:text-sm">
+              Desenvolvido por{" "}
+              <a
+                href="https://gooding.solutions/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-gray-700 hover:text-gray-900 transition-colors"
+              >
+                Gooding Solutions
+              </a>
+            </p>
+
+            <div className="grid grid-cols-3 gap-1 text-[9px] leading-tight text-[#2f3a8f] sm:gap-2 sm:text-[10px]">
+              <div className="flex min-w-0 flex-col items-center gap-0.5">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#2f3a8f]/12 sm:h-7 sm:w-7">
+                  <BarChart3 className="h-3 w-3 text-[#2f3a8f] sm:h-3.5 sm:w-3.5" />
+                </div>
+                <span className="line-clamp-2 font-medium tracking-wide">
+                  Relatórios avançados
+                </span>
+              </div>
+              <div className="flex min-w-0 flex-col items-center gap-0.5">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#2f3a8f]/12 sm:h-7 sm:w-7">
+                  <Zap className="h-3 w-3 text-[#2f3a8f] sm:h-3.5 sm:w-3.5" />
+                </div>
+                <span className="line-clamp-2 font-medium tracking-wide">
+                  Gestão de vendas
+                </span>
+              </div>
+              <div className="flex min-w-0 flex-col items-center gap-0.5">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#2f3a8f]/12 sm:h-7 sm:w-7">
+                  <Users className="h-3 w-3 text-[#2f3a8f] sm:h-3.5 sm:w-3.5" />
+                </div>
+                <span className="line-clamp-2 font-medium tracking-wide">
+                  Controle operacional
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Right Side — mesma imagem de fundo do login Blade (public/images/backgound.png) */}
-      <div className="hidden lg:flex lg:flex-1 relative overflow-hidden">
+      <div className="hidden min-h-0 lg:flex lg:flex-1 relative overflow-hidden">
         <div className="absolute inset-0">
           <Image
             src="/images/backgound.png"
@@ -37,46 +73,6 @@ export default function LoginPage() {
             className="object-cover object-center"
             priority
           />
-          <div className="absolute inset-0 bg-black/25" aria-hidden />
-        </div>
-        
-        {/* Content overlay */}
-        <div className="relative z-10 flex flex-col justify-center p-12 text-white">
-          <div className="mb-12">
-          </div>
-
-          <div className="space-y-8">
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                <BarChart3 className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold mb-2">Relatórios Avançados</h3>
-                <p className="text-blue-100">Análise completa de vendas, performance e metas por loja, rede e vendedor.</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                <Zap className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold mb-2">Gestão de Vendas</h3>
-                <p className="text-blue-100">Cadastro de vendas, pré-vendas e importação de metas e relatórios.</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                <Users className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold mb-2">Controle Operacional</h3>
-                <p className="text-blue-100">Gerenciamento de pessoas, PDVs, estoque e controle financeiro completo.</p>
-              </div>
-            </div>
-          </div>
-
         </div>
       </div>
     </div>

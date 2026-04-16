@@ -107,15 +107,17 @@ export function LoginForm() {
   }, [])
 
   return (
-    <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
-      <CardHeader className="space-y-1 pb-6">
-        <CardTitle className="text-2xl font-bold text-center">Bem-vindo de volta</CardTitle>
-        <CardDescription className="text-center text-gray-600">
-          Entre com suas credenciais para acessar o sistema
+    <Card className="border-0 bg-white/90 shadow-md backdrop-blur-sm">
+      <CardHeader className="space-y-0.5 p-4 pb-2">
+        <CardTitle className="text-center text-lg font-bold sm:text-xl">
+          Bem-vindo de volta
+        </CardTitle>
+        <CardDescription className="text-center text-xs text-gray-600 sm:text-sm">
+          Acesse com seu email e senha
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <CardContent className="p-4 pt-0">
+        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
           {error && (
             <Alert variant="destructive" className="border-red-200 bg-red-50">
               <AlertCircle className="h-4 w-4" />
@@ -123,19 +125,19 @@ export function LoginForm() {
             </Alert>
           )}
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="email" className="text-sm font-medium text-gray-700">
               Email
             </Label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
               <Input
                 id="email"
                 type="email"
                 placeholder="seu@email.com"
                 value={email}
                 onChange={handleEmailChange}
-                className={`pl-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 ${
+                className={`h-10 border-gray-200 pl-10 focus:border-blue-500 focus:ring-blue-500 sm:h-11 ${
                   emailError ? "border-red-300 focus:border-red-500 focus:ring-red-500" : ""
                 }`}
                 required
@@ -149,19 +151,19 @@ export function LoginForm() {
             )}
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="password" className="text-sm font-medium text-gray-700">
               Senha
             </Label>
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={password}
                 onChange={handlePasswordChange}
-                className={`pl-10 pr-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500 ${
+                className={`h-10 border-gray-200 pl-10 pr-10 focus:border-blue-500 focus:ring-blue-500 sm:h-11 ${
                   passwordError ? "border-red-300 focus:border-red-500 focus:ring-red-500" : ""
                 }`}
                 required
@@ -169,7 +171,7 @@ export function LoginForm() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 transform text-gray-400 transition-colors hover:text-gray-600"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -205,7 +207,7 @@ export function LoginForm() {
 
           <Button
             type="submit"
-            className="w-full h-12 border-0 font-medium text-white shadow-lg transition-all duration-200 hover:shadow-xl !bg-[#2f3a8f] hover:!bg-[#262f73] active:!bg-[#1e265c]"
+            className="h-10 w-full border-0 font-medium text-white shadow-md transition-all duration-200 hover:shadow-lg sm:h-11 !bg-[#2f3a8f] hover:!bg-[#262f73] active:!bg-[#1e265c]"
             disabled={isLoading || !!emailError || !!passwordError}
           >
             {isLoading ? (
@@ -218,9 +220,9 @@ export function LoginForm() {
             )}
           </Button>
 
-          <div className="text-center">
-            <p className="text-sm text-gray-500">
-              Não tem uma conta?{" "}
+          <div className="text-center pt-0.5">
+            <p className="text-xs text-gray-500 sm:text-sm">
+              Não tem conta?{" "}
               <button
                 type="button"
                 className="font-medium text-[#2f3a8f] transition-colors hover:text-[#262f73]"
