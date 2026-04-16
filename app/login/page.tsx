@@ -1,28 +1,18 @@
 import { LoginForm } from "@/components/auth/login-form"
-import { Building2, Shield, Zap, Users, BarChart3 } from "lucide-react"
+import { Zap, Users, BarChart3 } from "lucide-react"
 import Image from "next/image"
 
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
-      {/* Left Side - Login Form */}
+      {/* Left Side - Login Form (alinhado ao Blade: resources/views/auth/login.blade.php) */}
       <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-slate-50 p-8">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            {/* Logo TIM */}
-            <div className="mb-6 flex justify-center">
-              <img
-                src="/images/logo-tim.png"
-                alt="TIM"
-                width={120}
-                height={60}
-                className="mx-auto block"
-                style={{ maxWidth: '120px', height: 'auto' }}
-              />
-            </div>
-            
-            
-            <p className="text-gray-600 text-lg">Gestão Comercial e Operacional</p>
+            <h1 className="mb-3 text-4xl font-bold tracking-tight text-[#2f3a8f] sm:text-5xl">
+              Gplace
+            </h1>
+            <p className="text-gray-600 text-lg">Gestão Comercial e Ecommerce</p>
             
           </div>
           <LoginForm />
@@ -36,19 +26,18 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right Side - TIM Blue Man Group Image */}
+      {/* Right Side — mesma imagem de fundo do login Blade (public/images/backgound.png) */}
       <div className="hidden lg:flex lg:flex-1 relative overflow-hidden">
-        {/* Background Image */}
         <div className="absolute inset-0">
           <Image
-            src="/images/tim-blue-man-group.jpg"
-            alt="TIM - Você, sem fronteiras"
+            src="/images/backgound.png"
+            alt="Fundo"
             fill
-            className="object-cover"
+            sizes="(min-width: 1024px) 50vw, 0vw"
+            className="object-cover object-center"
             priority
           />
-          {/* Overlay for better text readability */}
-          <div className="absolute inset-0 bg-black/30"></div>
+          <div className="absolute inset-0 bg-black/25" aria-hidden />
         </div>
         
         {/* Content overlay */}
@@ -73,7 +62,7 @@ export default function LoginPage() {
               </div>
               <div>
                 <h3 className="text-xl font-semibold mb-2">Gestão de Vendas</h3>
-                <p className="text-blue-100">Cadastro de vendas, pré-vendas e importação de metas BOV da TIM.</p>
+                <p className="text-blue-100">Cadastro de vendas, pré-vendas e importação de metas e relatórios.</p>
               </div>
             </div>
 

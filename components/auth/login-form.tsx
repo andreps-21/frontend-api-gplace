@@ -197,24 +197,15 @@ export function LoginForm() {
             </div>
             <button
               type="button"
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+              className="text-sm font-medium text-[#2f3a8f] transition-colors hover:text-[#262f73]"
             >
               Esqueceu a senha?
             </button>
           </div>
 
-          <Button 
-            type="submit" 
-            className="w-full h-12 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200"
-            style={{ 
-              background: 'linear-gradient(to right, #0026d9, #001a99)',
-            }}
-            onMouseEnter={(e) => {
-              (e.target as HTMLButtonElement).style.background = 'linear-gradient(to right, #001a99, #001166)'
-            }}
-            onMouseLeave={(e) => {
-              (e.target as HTMLButtonElement).style.background = 'linear-gradient(to right, #0026d9, #001a99)'
-            }} 
+          <Button
+            type="submit"
+            className="w-full h-12 border-0 font-medium text-white shadow-lg transition-all duration-200 hover:shadow-xl !bg-[#2f3a8f] hover:!bg-[#262f73] active:!bg-[#1e265c]"
             disabled={isLoading || !!emailError || !!passwordError}
           >
             {isLoading ? (
@@ -232,7 +223,7 @@ export function LoginForm() {
               Não tem uma conta?{" "}
               <button
                 type="button"
-                className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                className="font-medium text-[#2f3a8f] transition-colors hover:text-[#262f73]"
               >
                 Entre em contato
               </button>

@@ -22,11 +22,11 @@ const getApiBaseUrl = () => {
     if (isDevelopment) {
       console.log('🏠 Usando API LOCAL - Desenvolvimento detectado');
     }
-    return 'http://localhost:8000/api/v1';
-  } else {
-    // Produção: usar API em nuvem
-    return 'https://api.alpharstelecom.com.br/api/v1';
+    // api-gplace em Docker (docker-compose): APP_PORT por omissão 8005
+    return 'http://localhost:8005/api/v1';
   }
+  // Produção sem NEXT_PUBLIC_API_URL: definir a variável no build/host
+  return 'https://api.alpharstelecom.com.br/api/v1';
 };
 
 const API_BASE_URL = getApiBaseUrl();
@@ -73,6 +73,8 @@ export interface User {
   establishment_id?: number;
   role?: string;
   roles?: UserRole[];
+  /** Nomes Spatie (`customers_view`, …) — perfil/login api-gplace. */
+  permissions?: string[];
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -225,9 +227,19 @@ class ApiService {
     // Carregar token do localStorage
     this.token = this.getToken();
 
-    // Interceptor para adicionar token automaticamente
+    // Interceptor: token Passport + header `app` (middleware CheckAppHeader na API Laravel)
     this.api.interceptors.request.use(
       (config) => {
+        const appToken = process.env.NEXT_PUBLIC_APP_TOKEN;
+        if (appToken) {
+          config.headers.set('app', appToken);
+        } else if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+          console.warn(
+            '[api] NEXT_PUBLIC_APP_TOKEN ausente — a API devolve 403 em rotas com middleware `app`. ' +
+              'Define em .env.local o valor de stores.app_token (painel admin ou base de dados).'
+          );
+        }
+
         // Sempre buscar o token mais recente do localStorage
         const currentToken = typeof window !== 'undefined' 
           ? localStorage.getItem('auth_token') 
@@ -237,6 +249,9 @@ class ApiService {
           config.headers.Authorization = `Bearer ${currentToken}`;
           // Atualizar token na memória também
           this.token = currentToken;
+        }
+        if (config.data instanceof FormData) {
+          config.headers.delete('Content-Type');
         }
         return config;
       },
@@ -563,13 +578,63 @@ class ApiService {
     }
   }
 
-  async getCities(): Promise<ApiResponse<City[]>> {
+  async getCities(params?: { state?: number; search?: string; page?: number }): Promise<ApiResponse<City[]>> {
     try {
-      const response = await this.api.get('/cities');
+      const response = await this.api.get('/cities', { params });
       return response.data;
     } catch (error) {
       throw this.handleError(error);
     }
+  }
+
+  async getCity(id: number): Promise<ApiResponse<City>> {
+    try {
+      const response = await this.api.get(`/cities/${id}`);
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /** Marcas da loja (header `app`). */
+  async getBrands(): Promise<ApiResponse<Array<{ id: number; name: string; image?: string; image_url?: string }>>> {
+    const response = await this.api.get('/brands');
+    return response.data;
+  }
+
+  /** Secções em árvore (API pública; para admin de produto preferir getAdminProductFormMeta). */
+  async getSectionsTree(): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/sections');
+    return response.data;
+  }
+
+  async getPaymentMethods(): Promise<ApiResponse<Array<{ id: number; name?: string }>>> {
+    const response = await this.api.get('/payment-methods');
+    return response.data;
+  }
+
+  async getAdminProductFormMeta(): Promise<
+    ApiResponse<{
+      sections: Array<{ id: number; name: string; parent_id?: number | null }>;
+      measurement_units: Array<{ id: number; name: string; initials?: string }>;
+      families: Array<{ id: number; name: string }>;
+      presentations: Array<{ id: number; name: string }>;
+    }>
+  > {
+    const response = await this.api.get('/admin/product-form-meta');
+    return response.data;
+  }
+
+  async getAdminStoreRole(id: number): Promise<
+    ApiResponse<{ role: Record<string, unknown>; permission_ids: number[] }>
+  > {
+    const response = await this.api.get(`/admin/store-roles/${id}`);
+    return response.data;
+  }
+
+  async syncAdminStoreRolePermissions(id: number, permissionIds: number[]): Promise<ApiResponse<unknown>> {
+    const response = await this.api.put(`/admin/store-roles/${id}/permissions`, { permission_ids: permissionIds });
+    return response.data;
   }
 
   // Método para buscar pessoa por NIF
@@ -1402,6 +1467,410 @@ class ApiService {
     } catch (error) {
       throw this.handleError(error);
     }
+  }
+
+  /** Admin / loja (migração Blade → Next), escopo pelo header `app` (loja). */
+  async getAdminStoreSettings(): Promise<ApiResponse<{
+    settings: Record<string, unknown> | null;
+    social_media_options: unknown[];
+    erp_options: unknown[];
+  }>> {
+    const response = await this.api.get('/admin/store-settings');
+    return response.data;
+  }
+
+  async updateAdminStoreSettings(payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.put('/admin/store-settings', payload);
+    return response.data;
+  }
+
+  async getAdminParameters(params?: { page?: number; per_page?: number }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/admin/parameters', { params });
+    return response.data;
+  }
+
+  async getAdminStoreUsers(params?: { page?: number; per_page?: number; search?: string }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/admin/store-users', { params });
+    return response.data;
+  }
+
+  async getAdminStoreRoles(params?: { page?: number; per_page?: number; search?: string }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/admin/store-roles', { params });
+    return response.data;
+  }
+
+  async getAdminPermissions(params?: { page?: number; per_page?: number }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/admin/permissions', { params });
+    return response.data;
+  }
+
+  async getAdminStoreFaqs(params?: { page?: number; per_page?: number }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/admin/store-faqs', { params });
+    return response.data;
+  }
+
+  async getAdminStoreCatalogs(params?: { page?: number; per_page?: number }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/admin/store-catalogs', { params });
+    return response.data;
+  }
+
+  async getAdminTokens(params?: { page?: number; per_page?: number }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/admin/tokens', { params });
+    return response.data;
+  }
+
+  async getAdminTenants(params?: { page?: number; per_page?: number; search?: string }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/admin/tenants', { params });
+    return response.data;
+  }
+
+  async getAdminCustomers(params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    status?: string;
+    start_date?: string;
+    end_date?: string;
+  }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/admin/customers', { params });
+    return response.data;
+  }
+
+  async getAdminLeads(params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    start_date?: string;
+    end_date?: string;
+  }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/admin/leads', { params });
+    return response.data;
+  }
+
+  async getAdminStores(params?: { page?: number; per_page?: number; search?: string }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/admin/stores', { params });
+    return response.data;
+  }
+
+  async getAdminSalesmen(params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    status?: string;
+    start_date?: string;
+    end_date?: string;
+  }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/admin/salesmen', { params });
+    return response.data;
+  }
+
+  async getAdminProducts(params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    is_enabled?: boolean;
+    section_id?: number;
+    brand_id?: number;
+    type?: string;
+    sku?: string;
+  }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/admin/products', { params });
+    return response.data;
+  }
+
+  async getAdminParameter(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get(`/admin/parameters/${id}`);
+    return response.data;
+  }
+
+  async createAdminParameter(payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post('/admin/parameters', payload);
+    return response.data;
+  }
+
+  async updateAdminParameter(id: number, payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.put(`/admin/parameters/${id}`, payload);
+    return response.data;
+  }
+
+  async deleteAdminParameter(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.delete(`/admin/parameters/${id}`);
+    return response.data;
+  }
+
+  async getAdminStoreFaq(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get(`/admin/store-faqs/${id}`);
+    return response.data;
+  }
+
+  async createAdminStoreFaq(payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post('/admin/store-faqs', payload);
+    return response.data;
+  }
+
+  async updateAdminStoreFaq(id: number, payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.put(`/admin/store-faqs/${id}`, payload);
+    return response.data;
+  }
+
+  async deleteAdminStoreFaq(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.delete(`/admin/store-faqs/${id}`);
+    return response.data;
+  }
+
+  async getAdminStoreCatalog(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get(`/admin/store-catalogs/${id}`);
+    return response.data;
+  }
+
+  async createAdminStoreCatalog(payload: Record<string, unknown> | FormData): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post('/admin/store-catalogs', payload);
+    return response.data;
+  }
+
+  async updateAdminStoreCatalog(id: number, payload: Record<string, unknown> | FormData): Promise<ApiResponse<unknown>> {
+    const response = await this.api.put(`/admin/store-catalogs/${id}`, payload);
+    return response.data;
+  }
+
+  async deleteAdminStoreCatalog(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.delete(`/admin/store-catalogs/${id}`);
+    return response.data;
+  }
+
+  async getAdminToken(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get(`/admin/tokens/${id}`);
+    return response.data;
+  }
+
+  async createAdminToken(payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post('/admin/tokens', payload);
+    return response.data;
+  }
+
+  async updateAdminToken(id: number, payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.put(`/admin/tokens/${id}`, payload);
+    return response.data;
+  }
+
+  async deleteAdminToken(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.delete(`/admin/tokens/${id}`);
+    return response.data;
+  }
+
+  async getAdminTenant(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get(`/admin/tenants/${id}`);
+    return response.data;
+  }
+
+  async updateAdminTenant(id: number, payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.put(`/admin/tenants/${id}`, payload);
+    return response.data;
+  }
+
+  async getAdminCustomer(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get(`/admin/customers/${id}`);
+    return response.data;
+  }
+
+  async createAdminCustomer(payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post('/admin/customers', payload);
+    return response.data;
+  }
+
+  async updateAdminCustomer(id: number, payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.put(`/admin/customers/${id}`, payload);
+    return response.data;
+  }
+
+  async deleteAdminCustomer(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.delete(`/admin/customers/${id}`);
+    return response.data;
+  }
+
+  async getAdminLead(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get(`/admin/leads/${id}`);
+    return response.data;
+  }
+
+  async createAdminLead(payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post('/admin/leads', payload);
+    return response.data;
+  }
+
+  async updateAdminLead(id: number, payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.put(`/admin/leads/${id}`, payload);
+    return response.data;
+  }
+
+  async deleteAdminLead(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.delete(`/admin/leads/${id}`);
+    return response.data;
+  }
+
+  async getAdminStore(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get(`/admin/stores/${id}`);
+    return response.data;
+  }
+
+  async createAdminStore(payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post('/admin/stores', payload);
+    return response.data;
+  }
+
+  async updateAdminStore(id: number, payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.put(`/admin/stores/${id}`, payload);
+    return response.data;
+  }
+
+  async deleteAdminStore(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.delete(`/admin/stores/${id}`);
+    return response.data;
+  }
+
+  async getAdminSalesman(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get(`/admin/salesmen/${id}`);
+    return response.data;
+  }
+
+  async createAdminSalesman(payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post('/admin/salesmen', payload);
+    return response.data;
+  }
+
+  async updateAdminSalesman(id: number, payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.put(`/admin/salesmen/${id}`, payload);
+    return response.data;
+  }
+
+  async deleteAdminSalesman(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.delete(`/admin/salesmen/${id}`);
+    return response.data;
+  }
+
+  async getAdminProduct(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get(`/admin/products/${id}`);
+    return response.data;
+  }
+
+  async createAdminProduct(payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post('/admin/products', payload);
+    return response.data;
+  }
+
+  async updateAdminProduct(id: number, payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.put(`/admin/products/${id}`, payload);
+    return response.data;
+  }
+
+  async deleteAdminProduct(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.delete(`/admin/products/${id}`);
+    return response.data;
+  }
+
+  async getAdminWarehouses(): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/admin/warehouses');
+    return response.data;
+  }
+
+  async createAdminWarehouse(payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post('/admin/warehouses', payload);
+    return response.data;
+  }
+
+  async getAdminStockMovements(params: { product_id: number; page?: number; per_page?: number }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/admin/stock-movements', { params });
+    return response.data;
+  }
+
+  async getAdminStockLots(params: { product_id: number; page?: number; per_page?: number }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/admin/stock-lots', { params });
+    return response.data;
+  }
+
+  async createAdminStockLot(payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post('/admin/stock-lots', payload);
+    return response.data;
+  }
+
+  async attachAdminStoreUser(userId: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post('/admin/store-users/attach', { user_id: userId });
+    return response.data;
+  }
+
+  async detachAdminStoreUser(userId: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.delete(`/admin/store-users/detach/${userId}`);
+    return response.data;
+  }
+
+  async getAdminOrders(params?: Record<string, string | number | boolean | undefined>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get("/admin/orders", { params });
+    return response.data;
+  }
+
+  async getAdminOrder(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get(`/admin/orders/${id}`);
+    return response.data;
+  }
+
+  async getAdminSections(): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get("/admin/sections");
+    return response.data;
+  }
+
+  async createAdminSection(payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post("/admin/sections", payload);
+    return response.data;
+  }
+
+  async updateAdminSection(id: number, payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.put(`/admin/sections/${id}`, payload);
+    return response.data;
+  }
+
+  async deleteAdminSection(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.delete(`/admin/sections/${id}`);
+    return response.data;
+  }
+
+  async getAdminBrands(): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get("/admin/brands");
+    return response.data;
+  }
+
+  async createAdminBrand(payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post("/admin/brands", payload);
+    return response.data;
+  }
+
+  async updateAdminBrand(id: number, payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.put(`/admin/brands/${id}`, payload);
+    return response.data;
+  }
+
+  async deleteAdminBrand(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.delete(`/admin/brands/${id}`);
+    return response.data;
+  }
+
+  async getAdminMeasurementUnits(params?: { page?: number; per_page?: number }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get("/admin/measurement-units", { params });
+    return response.data;
+  }
+
+  async createAdminMeasurementUnit(payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post("/admin/measurement-units", payload);
+    return response.data;
+  }
+
+  async updateAdminMeasurementUnit(id: number, payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.put(`/admin/measurement-units/${id}`, payload);
+    return response.data;
+  }
+
+  async deleteAdminMeasurementUnit(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.delete(`/admin/measurement-units/${id}`);
+    return response.data;
   }
 
   // Método genérico para fazer requisições GET

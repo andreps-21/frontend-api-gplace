@@ -1,6 +1,8 @@
 'use client';
 
 import { useAuth } from './auth';
+import { isUiPreview } from './ui-preview';
+import { roleKeyForModuleAccess } from './permissions-role';
 
 export interface PermissionConfig {
   [key: string]: string[];
@@ -59,7 +61,8 @@ const MODULE_PERMISSIONS: PermissionConfig = {
     'gerenciar-categorias',
     'gerenciar-metas',
     'gerenciar-comissoes',
-    'gerenciar-mural'
+    'gerenciar-mural',
+    'gerenciar-admin-api',
   ],
   'gestor': [
     'vendas-cadastrar',
@@ -89,12 +92,31 @@ const MODULE_PERMISSIONS: PermissionConfig = {
     'financeiro-contas-receber',
     'financeiro-contas-bancarias',
     'financeiro-clientes',
-    'financeiro-fornecedores'
+    'financeiro-fornecedores',
+    'gerenciar-admin-api',
   ]
 };
 
 export function usePermissions() {
   const { user } = useAuth();
+
+  if (isUiPreview()) {
+    const previewRole = 'gestor' as const;
+    return {
+      hasRole: (role: string) => role === previewRole,
+      hasAnyRole: (roles: string[]) => roles.includes(previewRole),
+      canAccessModule: (module: string) =>
+        (ROLE_PERMISSIONS[previewRole] || []).includes(module),
+      canAccessSpecificModule: (module: string) =>
+        (MODULE_PERMISSIONS[previewRole] || []).includes(module),
+      getAvailableModules: () => [...(ROLE_PERMISSIONS[previewRole] || [])],
+      getAvailableSpecificModules: () => [...(MODULE_PERMISSIONS[previewRole] || [])],
+      isVendedor: () => false,
+      isGerente: () => false,
+      isGestor: () => true,
+      userRole: previewRole,
+    };
+  }
 
   // Ler role da API corretamente (sem fallback para vendedor)
   const getUserRole = (): string | null => {
@@ -108,58 +130,57 @@ export function usePermissions() {
       return user.roles[0].name;
     }
     
-    // Se não houver role, retornar null (não fazer fallback)
-    // O sistema deve tratar isso como erro
     if (!user) {
       return null;
     }
-    
-    // Log de warning para debug
-    console.warn('⚠️ Usuário sem role atribuída:', {
-      id: user.id,
-      email: user.email,
-      hasRole: !!user.role,
-      hasRoles: !!user.roles,
-      rolesLength: user.roles?.length || 0
-    });
-    
+
     return null;
   };
 
   const userRole = getUserRole();
-  
-  // Se não houver role, usar null e tratar como erro
-  if (!userRole) {
-    console.error('❌ Usuário sem role detectada. Verifique se o backend está retornando a role corretamente.');
+  const permissionKey = roleKeyForModuleAccess(userRole);
+
+  if (
+    process.env.NODE_ENV === 'development' &&
+    user &&
+    !userRole
+  ) {
+    console.warn(
+      '[usePermissions] Utilizador autenticado sem role no perfil (campos `role` / `roles[].name`). Verifique a resposta de /auth/profile.',
+      { id: user.id, email: user.email }
+    );
   }
-  
-  console.log('🎯 Role final detectado:', userRole || 'NENHUMA ROLE ENCONTRADA');
 
   const hasAnyRole = (roles: string[]): boolean => {
     if (!userRole) return false;
-    return roles.includes(userRole) || user?.roles?.some(r => roles.includes(r.name)) || false;
+    if (roles.includes(userRole)) return true;
+    if (permissionKey && roles.some((r) => roleKeyForModuleAccess(r) === permissionKey)) return true;
+    return user?.roles?.some((r) => {
+      const k = roleKeyForModuleAccess(r.name);
+      return roles.includes(r.name) || (!!permissionKey && !!k && k === permissionKey);
+    }) || false;
   };
 
   const canAccessModule = (module: string): boolean => {
-    if (!userRole) return false;
-    const rolePermissions = ROLE_PERMISSIONS[userRole] || [];
+    if (!permissionKey) return false;
+    const rolePermissions = ROLE_PERMISSIONS[permissionKey] || [];
     return rolePermissions.includes(module);
   };
 
   const canAccessSpecificModule = (module: string): boolean => {
-    if (!userRole) return false;
-    const modulePermissions = MODULE_PERMISSIONS[userRole] || [];
+    if (!permissionKey) return false;
+    const modulePermissions = MODULE_PERMISSIONS[permissionKey] || [];
     return modulePermissions.includes(module);
   };
 
   const getAvailableModules = (): string[] => {
-    if (!userRole) return [];
-    return ROLE_PERMISSIONS[userRole] || [];
+    if (!permissionKey) return [];
+    return ROLE_PERMISSIONS[permissionKey] || [];
   };
 
   const getAvailableSpecificModules = (): string[] => {
-    if (!userRole) return [];
-    return MODULE_PERMISSIONS[userRole] || [];
+    if (!permissionKey) return [];
+    return MODULE_PERMISSIONS[permissionKey] || [];
   };
 
   const isVendedor = (): boolean => {
@@ -171,14 +192,24 @@ export function usePermissions() {
   };
 
   const isGestor = (): boolean => {
-    // Gestor e master são tratados como super administradores
-    return userRole === 'gestor' || userRole === 'master';
+    return (
+      userRole === 'gestor' ||
+      userRole === 'master' ||
+      userRole === 'administrador'
+    );
   };
   
   // Função auxiliar para verificar se usuário tem uma role específica
   const hasRole = (role: string): boolean => {
     if (!userRole) return false;
-    return userRole === role || user?.roles?.some(r => r.name === role) || false;
+    if (userRole === role) return true;
+    const want = roleKeyForModuleAccess(role);
+    if (permissionKey && want && permissionKey === want) return true;
+    return user?.roles?.some((r) => {
+      if (r.name === role) return true;
+      const k = roleKeyForModuleAccess(r.name);
+      return !!want && !!k && k === want;
+    }) || false;
   };
 
   return {

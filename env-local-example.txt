@@ -1,16 +1,12 @@
-# Configuração da API para desenvolvimento local
-# Copie este ficheiro para .env.local na raiz do projeto (ou use .env.example como base).
+# Copie para .env.local (ou use .env.example como base).
+# Ligação ao api-gplace em Docker (porta 8005 por omissão).
 
-# api-tim em Docker (./docker-start.sh na raiz da API — porta 8080)
-NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
+NEXT_PUBLIC_API_URL=http://localhost:8005/api/v1
+NEXT_PUBLIC_APP_TOKEN=gplace-local-frontend
+NEXT_PUBLIC_APP_NAME=Gplace
 
-# api-tim com "php artisan serve" na pasta da API (porta 8000 por omissão)
-# NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api/v1
+# Opcional: dashboard + sidebar sem login (só dev).
+# NEXT_PUBLIC_UI_PREVIEW=true
 
-# API em nuvem
-# NEXT_PUBLIC_API_URL=https://api.alpharstelecom.com.br/api/v1
-
-# Instruções:
-# 1. cp .env.example .env.local   (ou copiar este ficheiro para .env.local)
-# 2. Reinicie o servidor: npm run dev
-# 3. CORS: a api-tim deve permitir a origem do Next (ex.: http://localhost:3000)
+# O token gplace-local-frontend é criado na API por LocalDevStoreSeeder (db:seed com APP_ENV=local).
+# Se tiveres .env.local com NEXT_PUBLIC_APP_TOKEN vazio, apaga a linha — senão o Next ignora o valor por omissão.

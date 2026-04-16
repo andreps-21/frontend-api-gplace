@@ -3,10 +3,20 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, ShoppingCart, BarChart3, Settings, Wallet, Building2, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
-import { useState } from "react"
+import {
+  LayoutDashboard,
+  ShoppingCart,
+  BarChart3,
+  Settings,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react"
+import { useEffect, useState } from "react"
 import { usePermissions } from "@/lib/use-permissions"
 import { useUserPermissions } from "@/lib/user-permissions"
+import { GplaceBladeSidebar } from "@/components/dashboard/gplace-blade-sidebar"
+import { useGplacePermissions } from "@/lib/use-gplace-permissions"
 
 const navigation = [
   { 
@@ -164,6 +174,13 @@ export function DashboardSidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const { canAccessModule, canAccessSpecificModule, userRole } = usePermissions()
   const userPermissions = useUserPermissions()
+  const { bladeSidebarMode } = useGplacePermissions()
+
+  useEffect(() => {
+    if (pathname.startsWith("/dashboard/gerenciar")) {
+      setExpandedItems((prev) => (prev.includes("Gerenciar") ? prev : [...prev, "Gerenciar"]))
+    }
+  }, [pathname])
 
   // Sistema funcionando - logs removidos
 
@@ -180,35 +197,26 @@ export function DashboardSidebar() {
   }
 
   return (
-    <aside className={cn("border-r border-slate-700 flex flex-col transition-all duration-300", isCollapsed ? "w-16" : "w-64")} style={{ backgroundColor: '#0026d9' }}>
+    <aside
+      className={cn(
+        "flex flex-col border-r border-[#262f73] bg-[#2f3a8f] transition-all duration-300",
+        isCollapsed ? "w-16" : "w-64"
+      )}
+    >
       <div className={cn("border-b border-white/20", isCollapsed ? "p-2" : "p-6")}>
         <div className="flex items-center justify-between">
           {!isCollapsed && (
-            <div className="flex flex-col items-center gap-3">
-              {/* Logo TIM */}
-              <img
-                src="/images/tim-sidebar.png"
-                alt="TIM"
-                width={80}
-                height={40}
-                className="block"
-                style={{ maxWidth: '80px', height: 'auto' }}
-              />
-              <div className="text-center">
-                <p className="text-xs text-white/70">Alpha RS Telecom</p>
-              </div>
+            <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-1">
+              <span className="text-center text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                Gplace
+              </span>
             </div>
           )}
           {isCollapsed && (
-            <div className="flex justify-center">
-              <img
-                src="/images/tim-sidebar.png"
-                alt="TIM"
-                width={32}
-                height={16}
-                className="block"
-                style={{ maxWidth: '32px', height: 'auto' }}
-              />
+            <div className="flex flex-1 justify-center">
+              <span className="text-xl font-bold leading-none text-white" title="Gplace">
+                G
+              </span>
             </div>
           )}
           <button
@@ -228,7 +236,7 @@ export function DashboardSidebar() {
       <nav className={cn("flex-1 overflow-y-auto", isCollapsed ? "p-2" : "p-4")}>
         <ul className="space-y-1">
           {/* Fallback temporário - sempre mostrar Home, Vendas e Relatórios para vendedor */}
-          {userRole === 'vendedor' ? (
+          {String(userRole ?? "").toLowerCase() === "vendedor" ? (
             <>
               <li>
                 <Link
@@ -375,9 +383,38 @@ export function DashboardSidebar() {
               </li>
             </>
           ) : (
-            navigation
+            <>
+              {bladeSidebarMode ? (
+                <>
+                  {!isCollapsed ? (
+                    <li className="list-none px-1 pb-2 pt-0">
+                      <div className="rounded-md bg-white/5 px-2 py-1.5 ring-1 ring-white/10">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Gplace</p>
+                        <p className="text-[10px] text-white/45">Menu alinhado ao Blade + API v1</p>
+                      </div>
+                    </li>
+                  ) : null}
+                  <GplaceBladeSidebar isCollapsed={isCollapsed} />
+                  {canAccessModule("gerenciar") ? (
+                    <>
+                      <li className="list-none py-3" aria-hidden="true">
+                        <div className="mx-1 border-t border-white/25" />
+                      </li>
+                      {!isCollapsed ? (
+                        <li className="list-none px-1 pb-2 pt-0">
+                          <div className="rounded-md bg-white/5 px-2 py-1.5 ring-1 ring-white/10">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-white/55">Legado TIM</p>
+                            <p className="text-[10px] text-white/40">Outro backend (vendas, relatórios…)</p>
+                          </div>
+                        </li>
+                      ) : null}
+                    </>
+                  ) : null}
+                </>
+              ) : null}
+              {navigation
               .filter((item) => {
-                // Filtrar itens principais baseado na permissão do módulo
+                if (bladeSidebarMode && item.name === "Home") return false
                 return canAccessModule(item.permission);
               })
               .map((item) => {
@@ -427,23 +464,34 @@ export function DashboardSidebar() {
 
               return (
                 <li key={item.name}>
-                  <button
-                    onClick={() => toggleExpanded(item.name)}
-                    className={cn(
-                      "flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm font-medium text-white/90 hover:bg-white/10 hover:text-white transition-colors",
-                      isCollapsed ? "justify-center" : ""
-                    )}
-                    title={isCollapsed ? item.name : undefined}
-                    disabled={isCollapsed}
-                  >
-                    <div className={cn("flex items-center gap-3", isCollapsed ? "gap-0" : "")}>
-                      <item.icon className="w-5 h-5" />
-                      {!isCollapsed && item.name}
-                    </div>
-                    {!isCollapsed && (
-                      <ChevronDown className={cn("w-4 h-4 transition-transform", isExpanded && "rotate-180")} />
-                    )}
-                  </button>
+                  {isCollapsed ? (
+                    <Link
+                      href={filteredChildren[0]?.href ?? "/dashboard"}
+                      className={cn(
+                        "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-white/90 transition-colors hover:bg-white/10 hover:text-white",
+                        "justify-center"
+                      )}
+                      title={item.name}
+                    >
+                      <div className="flex items-center justify-center">
+                        <item.icon className="h-5 w-5" />
+                      </div>
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => toggleExpanded(item.name)}
+                      className={cn(
+                        "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-white/90 transition-colors hover:bg-white/10 hover:text-white"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <item.icon className="h-5 w-5" />
+                        {item.name}
+                      </div>
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
+                    </button>
+                  )}
                   {!isCollapsed && isExpanded && filteredChildren.length > 0 && (
                     <ul className="mt-1 ml-8 space-y-1">
                       {filteredChildren.map((child) => {
@@ -476,7 +524,8 @@ export function DashboardSidebar() {
                   )}
                 </li>
               )
-            })
+            })}
+            </>
           )}
         </ul>
       </nav>

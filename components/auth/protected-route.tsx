@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { isUiPreview } from '@/lib/ui-preview';
 import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
@@ -13,16 +14,18 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
+  const preview = isUiPreview();
+
   useEffect(() => {
     // Aguardar um pouco mais para evitar redirecionamentos prematuros
     const timer = setTimeout(() => {
-      if (!isLoading && !isAuthenticated) {
+      if (!preview && !isLoading && !isAuthenticated) {
         router.replace('/login');
       }
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, preview, router]);
 
   if (isLoading) {
     return (
@@ -35,7 +38,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !preview) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">

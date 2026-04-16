@@ -1,4 +1,6 @@
 import { useAuth } from './auth'
+import { isUiPreview } from './ui-preview'
+import { roleKeyForModuleAccess } from './permissions-role'
 
 export interface UserPermissions {
   canViewAllUsers: boolean
@@ -19,8 +21,8 @@ export interface UserPermissions {
 }
 
 export const getUserPermissions = (user: any): UserPermissions => {
-  // Ler role corretamente: campo role ou array roles
-  const role = user?.role || user?.roles?.[0]?.name || 'vendedor' // Fallback apenas para compatibilidade com interface
+  const rawRole = user?.role || user?.roles?.[0]?.name || 'vendedor'
+  const role = roleKeyForModuleAccess(rawRole) || rawRole
   
   // Se não houver role, logar warning
   if (!user?.role && !user?.roles?.[0]?.name) {
@@ -28,27 +30,27 @@ export const getUserPermissions = (user: any): UserPermissions => {
   }
   
   return {
-    canViewAllUsers: ['gestor', 'master'].includes(role),
-    canViewEstablishmentUsers: ['gestor', 'gerente', 'master'].includes(role),
+    canViewAllUsers: role === 'gestor',
+    canViewEstablishmentUsers: ['gestor', 'gerente'].includes(role),
     canViewOwnUser: true, // Todos podem ver seu próprio usuário
-    canEditAllUsers: ['gestor'].includes(role),
+    canEditAllUsers: role === 'gestor',
     canEditEstablishmentUsers: ['gestor', 'gerente'].includes(role),
     canEditOwnUser: true, // Todos podem editar seu próprio usuário
     canActivateUsers: ['gestor', 'gerente'].includes(role),
     canCreateUsers: ['gestor', 'gerente'].includes(role),
     canEditEstablishment: ['gestor', 'gerente'].includes(role),
     canEditStatus: ['gestor', 'gerente'].includes(role),
-    canEditRole: ['gestor'].includes(role),
-    canViewAllEstablishments: ['gestor', 'master'].includes(role),
+    canEditRole: role === 'gestor',
+    canViewAllEstablishments: role === 'gestor',
     canViewEstablishment: (establishmentId: number) => {
-      if (['gestor', 'master'].includes(role)) return true
+      if (role === 'gestor') return true
       return user?.establishment_id === establishmentId
     },
     canManageEstablishment: (establishmentId: number) => {
-      if (['gestor', 'master'].includes(role)) return true
+      if (role === 'gestor') return true
       return user?.establishment_id === establishmentId
     },
-    role: role
+    role: rawRole
   }
 }
 
@@ -71,5 +73,8 @@ export const canAccessUser = (currentUser: any, targetUser: any): boolean => {
 // Hook para usar permissões no componente
 export const useUserPermissions = () => {
   const { user } = useAuth()
+  if (isUiPreview() && !user) {
+    return getUserPermissions({ role: 'gestor' })
+  }
   return getUserPermissions(user)
 }

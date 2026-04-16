@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ShoppingCart, TrendingUp, Users, DollarSign, Target, Award, Loader2, Wifi, Smartphone, Headphones, Coins, Wallet, Cake } from "lucide-react"
 import { apiService } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
+import { isGestorLevelRole } from "@/lib/permissions-role"
 import { notifications } from "@/lib/notifications"
 import { TopLojasCard } from "@/components/TopLojasCard"
 
@@ -258,8 +259,8 @@ export default function DashboardPage() {
       }
       
       // Apenas Gestor/Master podem especificar establishment_id
-      if (user?.role === 'gestor' || user?.role === 'master') {
-        // Gestor/Master pode especificar establishment_id se quiser filtrar
+      if (isGestorLevelRole(user?.role)) {
+        // Gestor / administrador / master pode especificar establishment_id se quiser filtrar
         console.log('👑 Usuário gestor/master, pode especificar establishment_id')
       } else {
         console.log('👤 Usuário vendedor/gerente, filtro automático por role')
@@ -327,7 +328,7 @@ export default function DashboardPage() {
       }
 
       // Se for gestor/gerente ou administrador, buscar todos os estabelecimentos
-      if (user?.role === 'gestor' || user?.role === 'gerente' || user?.email === 'admin@tim.com.br' || user?.name?.includes('Administrador')) {
+      if (isGestorLevelRole(user?.role) || user?.role === 'gerente' || user?.email === 'admin@tim.com.br' || user?.name?.includes('Administrador')) {
         const response = await apiService.getEstablishments()
         console.log('Resposta da API de estabelecimentos:', response)
         
@@ -439,7 +440,7 @@ export default function DashboardPage() {
       let params: any = {}
       
       // Aplicar filtros baseados no role do usuário
-      if (user?.role === 'gestor' || user?.role === 'master' || user?.email === 'admin@tim.com.br' || user?.name?.includes('Administrador')) {
+      if (isGestorLevelRole(user?.role) || user?.email === 'admin@tim.com.br' || user?.name?.includes('Administrador')) {
         console.log('👑 Usuário gestor/master/admin, buscando todas as estatísticas')
       } else if (user?.role === 'gerente' && user?.establishment_id) {
         console.log('👤 Usuário gerente, filtrando por estabelecimento:', user.establishment_id)
@@ -548,7 +549,7 @@ export default function DashboardPage() {
   {
     title: "Vendedores Ativos",
       value: loading ? "..." : stats.vendedoresAtivos.toString(),
-      change: (user?.role === 'gestor' || user?.role === 'master' || user?.email === 'admin@tim.com.br' || user?.name?.includes('Administrador')) ? `${establishments.length} lojas` : "Sua loja",
+      change: (isGestorLevelRole(user?.role) || user?.email === 'admin@tim.com.br' || user?.name?.includes('Administrador')) ? `${establishments.length} lojas` : "Sua loja",
     icon: Users,
     color: "text-purple-600",
   },

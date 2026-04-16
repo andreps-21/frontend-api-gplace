@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from "react"
 import { PasswordChangeModal } from "@/components/auth/password-change-modal"
 import { usePermissions } from "@/lib/use-permissions"
 import { apiService, type HeaderNotificationItem } from "@/lib/api"
+import { isUiPreview } from "@/lib/ui-preview"
 
 export function DashboardHeader() {
   const router = useRouter()
@@ -155,7 +156,12 @@ export function DashboardHeader() {
   return (
     <header className="h-16 bg-background px-6 flex items-center justify-between">
       {/* Indicador de API */}
-      <div className="flex items-center gap-2 text-sm">
+      <div className="flex items-center gap-2 text-sm flex-wrap">
+        {isUiPreview() && (
+          <div className="flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-900 rounded-md text-xs font-medium">
+            Pré-visualização UI (sem sessão)
+          </div>
+        )}
         {apiStatus.type === 'local' ? (
           <div className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-md">
             <Server className="w-4 h-4" />
