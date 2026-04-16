@@ -42,6 +42,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const isAuthenticated = !!user;
 
+  // Quando o axios remove o token (401), manter contexto alinhado ao localStorage
+  useEffect(() => {
+    const onSessionInvalid = () => {
+      setUser(null);
+      setIsLoading(false);
+    };
+    window.addEventListener('auth:session-invalid', onSessionInvalid);
+    return () => window.removeEventListener('auth:session-invalid', onSessionInvalid);
+  }, []);
+
   // Carregar dados do usuário ao inicializar
   useEffect(() => {
     if (!isInitialized) return;
@@ -52,18 +62,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const token = apiService.getToken();
         if (token) {
           const response = await apiService.getProfile();
-          console.log('📥 Resposta do /auth/profile:', response);
-          console.log('📥 Dados do usuário:', response.data);
-          console.log('🎯 Role do usuário:', response.data?.role);
-          console.log('🎯 Roles do usuário:', response.data?.roles);
-          console.log('🏢 Estabelecimento do usuário:', response.data?.establishment);
           setUser(response.data);
         } else {
           setUser(null);
         }
-      } catch (error) {
-        // Token inválido ou expirado
-        console.log('Token inválido, fazendo logout automático');
+      } catch {
         apiService.clearToken();
         setUser(null);
       } finally {
@@ -104,13 +107,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Buscar perfil completo com establishment após login
       try {
         const profileResponse = await apiService.getProfile();
-        console.log('📥 Perfil completo carregado:', profileResponse);
-        console.log('📥 Dados do usuário:', profileResponse.data);
-        console.log('🎯 Role do usuário:', profileResponse.data?.role);
-        console.log('🎯 Roles do usuário:', profileResponse.data?.roles);
         setUser(profileResponse.data);
-      } catch (profileError) {
-        console.warn('⚠️ Erro ao carregar perfil completo, usando dados básicos:', profileError);
+      } catch {
         setUser(response.data.user);
       }
     } catch (error) {

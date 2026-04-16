@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { isUiPreview } from '@/lib/ui-preview';
@@ -10,34 +10,52 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
+const AUTH_TOKEN_KEY = 'auth_token';
+
 function readStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
   try {
-    return localStorage.getItem('auth_token');
+    return localStorage.getItem(AUTH_TOKEN_KEY);
   } catch {
     return null;
   }
 }
 
+function subscribeToken(callback: () => void) {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+  window.addEventListener('storage', callback);
+  window.addEventListener('auth:session-invalid', callback);
+  return () => {
+    window.removeEventListener('storage', callback);
+    window.removeEventListener('auth:session-invalid', callback);
+  };
+}
+
+function getTokenSnapshot(): string {
+  return readStoredToken() ?? '';
+}
+
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
-  const [hasToken, setHasToken] = useState(() => !!readStoredToken());
-
   const preview = isUiPreview();
 
-  useEffect(() => {
-    setHasToken(!!readStoredToken());
-  }, [isAuthenticated, isLoading]);
+  const tokenSnapshot = useSyncExternalStore(
+    subscribeToken,
+    getTokenSnapshot,
+    () => ''
+  );
+  const hasStoredToken = tokenSnapshot.length > 0;
 
   useEffect(() => {
     if (preview || isLoading) return;
-    // Ainda há sessão no storage — não mandar para /login (evita corrida após hidratação)
-    if (hasToken && !isAuthenticated) return;
+    if (hasStoredToken && !isAuthenticated) return;
     if (!isAuthenticated) {
       router.replace('/login');
     }
-  }, [isAuthenticated, isLoading, hasToken, preview, router]);
+  }, [isAuthenticated, isLoading, hasStoredToken, preview, router]);
 
   if (isLoading) {
     return (
@@ -50,8 +68,8 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  // Token presente mas contexto ainda a carregar perfil — não mostrar "Redirecionando…"
-  if (hasToken && !isAuthenticated && !preview) {
+  // Token no storage mas utilizador ainda não hidratado (ou a sincronizar após 401)
+  if (hasStoredToken && !isAuthenticated && !preview) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">

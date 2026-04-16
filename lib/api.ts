@@ -298,13 +298,9 @@ class ApiService {
       },
       (error: AxiosError) => {
         if (error.response?.status === 401) {
-          // Token expirado ou inválido
+          // Token expirado ou inválido — limpa storage e notifica AuthProvider (evita estado React
+          // "logado" com token apagado + reload agressivo que mascarava o problema).
           this.clearToken();
-          // Só redirecionar se não estivermos já na página de login
-          if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-            // Usar replace para evitar adicionar ao histórico
-            window.location.replace('/login');
-          }
         }
         return Promise.reject(error);
       }
@@ -328,6 +324,7 @@ class ApiService {
     this.token = null;
     if (typeof window !== 'undefined') {
       localStorage.removeItem('auth_token');
+      window.dispatchEvent(new CustomEvent('auth:session-invalid'));
     }
   }
 
