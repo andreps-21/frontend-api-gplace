@@ -17,7 +17,7 @@ import { useAuth } from "@/lib/auth"
 import { useCallback, useEffect, useState } from "react"
 import { PasswordChangeModal } from "@/components/auth/password-change-modal"
 import { usePermissions } from "@/lib/use-permissions"
-import { apiService, type HeaderNotificationItem } from "@/lib/api"
+import { apiService, type HeaderNotificationItem, PROD_API_PUBLIC_ORIGIN } from "@/lib/api"
 import { isUiPreview } from "@/lib/ui-preview"
 
 export function DashboardHeader() {
@@ -94,7 +94,7 @@ export function DashboardHeader() {
       } else {
         setApiStatus({
           type: 'cloud',
-          url: 'https://api.alpharstelecom.com.br',
+          url: PROD_API_PUBLIC_ORIGIN,
           isOnline: true
         })
       }

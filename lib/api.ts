@@ -1,32 +1,53 @@
 import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
 
 // Configuração base da API
+const LOCAL_API_DEFAULT = 'http://localhost:8005/api/v1';
+/** Origem HTTPS da API em produção (sem `/api/v1`). */
+export const PROD_API_PUBLIC_ORIGIN = 'https://api-gplace.gooding.solutions';
+/** Fallback quando não há env válida (evitar apontar localhost no site público). */
+const PROD_API_FALLBACK = `${PROD_API_PUBLIC_ORIGIN}/api/v1`;
+
+const envUrlPointsToLoopback = (url: string) =>
+  /localhost|127\.0\.0\.1/.test(url);
+
+const pageHostnameIsLocal = () => {
+  if (typeof window === 'undefined') return false;
+  const h = window.location.hostname;
+  return h === 'localhost' || h === '127.0.0.1' || /^192\.168\./.test(h);
+};
+
 const getApiBaseUrl = () => {
-  // Se a variável de ambiente estiver definida, use ela
-  if (process.env.NEXT_PUBLIC_API_URL) {
+  const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
+
+  // Site em HTTPS público + env ainda com localhost (erro comum no deploy): ignorar env.
+  if (
+    fromEnv &&
+    typeof window !== 'undefined' &&
+    !pageHostnameIsLocal() &&
+    envUrlPointsToLoopback(fromEnv)
+  ) {
+    console.warn(
+      '[Gplace] NEXT_PUBLIC_API_URL aponta para o ambiente local mas a página não é local. ' +
+        'Define no host de produção uma URL HTTPS da API (ex.: https://teu-dominio/api/v1) e faz novo build.'
+    );
+  } else if (fromEnv && !(typeof window !== 'undefined' && !pageHostnameIsLocal() && envUrlPointsToLoopback(fromEnv))) {
     if (process.env.NODE_ENV === 'development') {
-      console.log('🌐 API URL definida por variável de ambiente:', process.env.NEXT_PUBLIC_API_URL);
+      console.log('🌐 API URL (env):', fromEnv);
     }
-    return process.env.NEXT_PUBLIC_API_URL;
+    return fromEnv;
   }
-  
-  // Detectar ambiente automaticamente
+
   const isDevelopment = process.env.NODE_ENV === 'development';
-  const isLocalhost = typeof window !== 'undefined' && 
-    (window.location.hostname === 'localhost' || 
-     window.location.hostname === '127.0.0.1' ||
-     window.location.hostname.includes('192.168.'));
-  
+  const isLocalhost = typeof window !== 'undefined' && pageHostnameIsLocal();
+
   if (isDevelopment || isLocalhost) {
-    // Desenvolvimento: usar API local
     if (isDevelopment) {
-      console.log('🏠 Usando API LOCAL - Desenvolvimento detectado');
+      console.log('🏠 Usando API LOCAL (dev)');
     }
-    // api-gplace em Docker (docker-compose): APP_PORT por omissão 8005
-    return 'http://localhost:8005/api/v1';
+    return LOCAL_API_DEFAULT;
   }
-  // Produção sem NEXT_PUBLIC_API_URL: definir a variável no build/host
-  return 'https://api.alpharstelecom.com.br/api/v1';
+
+  return PROD_API_FALLBACK;
 };
 
 const API_BASE_URL = getApiBaseUrl();

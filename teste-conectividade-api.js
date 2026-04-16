@@ -19,7 +19,7 @@ async function testarProdutos() {
 
   try {
     console.log('🌐 Testando endpoint de produtos...');
-    const response = await fetch('https://api.alpharstelecom.com.br/api/v1/products', {
+    const response = await fetch('https://api-gplace.gooding.solutions/api/v1/products', {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -53,7 +53,7 @@ async function testarPerfil() {
 
   try {
     console.log('🌐 Testando endpoint de perfil...');
-    const response = await fetch('https://api.alpharstelecom.com.br/api/v1/auth/me', {
+    const response = await fetch('https://api-gplace.gooding.solutions/api/v1/auth/me', {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -84,7 +84,7 @@ async function testarLogin() {
 
   try {
     console.log('🌐 Testando login...');
-    const response = await fetch('https://api.alpharstelecom.com.br/api/v1/auth/login', {
+    const response = await fetch('https://api-gplace.gooding.solutions/api/v1/auth/login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

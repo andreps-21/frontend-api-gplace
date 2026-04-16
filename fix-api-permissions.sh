@@ -73,10 +73,10 @@ print_status "Verificando configuração do Laravel..."
 php artisan --version
 
 print_status "Correção de permissões concluída!"
-print_warning "Teste a API agora: curl -I https://api.alpharstelecom.com.br/api/v1/auth/login"
+print_warning "Teste a API agora: curl -I https://api-gplace.gooding.solutions/api/v1/auth/login"
 
 echo ""
 echo "📋 Próximos passos:"
-echo "1. Teste a API: curl -I https://api.alpharstelecom.com.br/api/v1/auth/login"
+echo "1. Teste a API: curl -I https://api-gplace.gooding.solutions/api/v1/auth/login"
 echo "2. Verifique os logs: tail -f storage/logs/laravel.log"
 echo "3. Teste o frontend: http://localhost:3000/login"

@@ -37,7 +37,7 @@ console.log(`
 📋 Como usar:
 1. Adicione o header: Authorization: Bearer [TOKEN]
 2. Use em requisições para endpoints protegidos
-3. Exemplo: curl -H "Authorization: Bearer [TOKEN]" https://api.alpharstelecom.com.br/api/v1/auth/me
+3. Exemplo: curl -H "Authorization: Bearer [TOKEN]" https://api-gplace.gooding.solutions/api/v1/auth/me
 
 ⚠️ IMPORTANTE: Este token expira e deve ser renovado quando necessário.
 `);
