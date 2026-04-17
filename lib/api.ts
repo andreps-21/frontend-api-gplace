@@ -706,8 +706,9 @@ class ApiService {
     return response.data;
   }
 
+  /** Painel admin: rota autenticada (loja via `user_store`), não depende do header `app` do catálogo. */
   async getPaymentMethods(): Promise<ApiResponse<Array<{ id: number; name?: string }>>> {
-    const response = await this.api.get('/payment-methods');
+    const response = await this.api.get('/admin/payment-methods');
     return response.data;
   }
 
