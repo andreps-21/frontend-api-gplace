@@ -17,6 +17,7 @@ import { AccessDenied } from "@/components/ui/access-denied"
 import { notifications } from "@/lib/notifications"
 import { useUserPermissions } from "@/lib/user-permissions"
 import { handleApiError, showErrorNotification } from "@/lib/error-handler"
+import { PanelTableSkeleton } from "@/components/dashboard/panel-content-skeleton"
 
 interface Establishment {
   id: number
@@ -369,10 +370,7 @@ export default function EstabelecimentosPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <span className="ml-2 text-muted-foreground">Carregando estabelecimentos...</span>
-            </div>
+            <PanelTableSkeleton rows={10} columns={8} />
           ) : paginatedEstablishments.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Building2 className="w-16 h-16 mx-auto mb-4 text-gray-300" />

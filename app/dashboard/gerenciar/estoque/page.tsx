@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getCategoriasAtivas, getCategoriasVendas, CategoriaVenda } from "@/lib/categorias"
 import { apiService, Product } from "@/lib/api"
 import * as XLSX from 'xlsx'
+import { PanelGridCardsSkeleton, PanelPageHeaderSkeleton, PanelTableSkeleton } from "@/components/dashboard/panel-content-skeleton"
 
 // Interface para compatibilidade com o sistema antigo
 interface ProdutoEstoque {
@@ -1015,11 +1016,10 @@ export default function EstoquePage() {
   }
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Carregando estoque...</p>
-        </div>
+      <div className="min-h-screen space-y-6 p-6" aria-busy="true" aria-label="A carregar estoque">
+        <PanelPageHeaderSkeleton />
+        <PanelGridCardsSkeleton cards={4} />
+        <PanelTableSkeleton rows={12} columns={6} />
       </div>
     )
   }

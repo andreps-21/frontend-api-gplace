@@ -15,6 +15,7 @@ import { usePermissions } from "@/lib/use-permissions"
 import { apiService } from "@/lib/api"
 import { useDateRange } from "@/hooks/useDateRange"
 import { ProtectedPage } from "@/components/auth/protected-page"
+import { PanelTableSkeleton } from "@/components/dashboard/panel-content-skeleton"
 
 interface ClienteInfo {
   nome: string
@@ -954,10 +955,7 @@ export default function RankingProdutosPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-muted-foreground">Carregando ranking...</span>
-            </div>
+            <PanelTableSkeleton rows={10} columns={8} />
           ) : ranking.length === 0 ? (
             <div className="flex items-center justify-center py-8">
               <p className="text-muted-foreground">Nenhum dado encontrado para os filtros selecionados</p>

@@ -22,6 +22,7 @@ import { handleApiError, showErrorNotification } from "@/lib/error-handler"
 import CitySearch from "@/components/ui/city-search"
 import { maskCEP, unmaskCEP, unmaskCPF } from "@/lib/masks"
 import { Info } from "lucide-react"
+import { PanelTableSkeleton } from "@/components/dashboard/panel-content-skeleton"
 
 export default function UsuariosPage() {
   const { user } = useAuth()
@@ -1156,10 +1157,7 @@ export default function UsuariosPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <span className="ml-2 text-muted-foreground">Carregando usuários...</span>
-            </div>
+            <PanelTableSkeleton rows={10} columns={7} />
           ) : paginatedUsuarios.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />

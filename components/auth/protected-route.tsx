@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { isUiPreview } from '@/lib/ui-preview';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Loader2 } from 'lucide-react';
 
 function DashboardAuthSkeleton() {
   return (
@@ -93,25 +92,11 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   // Token no storage mas utilizador ainda não hidratado (ou a sincronizar após 401)
   if (hasStoredToken && !isAuthenticated && !preview) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-blue-600 mb-4" />
-          <p className="text-gray-600">A sincronizar sessão...</p>
-        </div>
-      </div>
-    );
+    return <DashboardAuthSkeleton />;
   }
 
   if (!isAuthenticated && !preview) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-blue-600 mb-4" />
-          <p className="text-gray-600">Redirecionando para login...</p>
-        </div>
-      </div>
-    );
+    return <DashboardAuthSkeleton />;
   }
 
   return <>{children}</>;

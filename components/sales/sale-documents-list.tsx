@@ -17,6 +17,7 @@ import {
   AlertCircle,
   Upload
 } from 'lucide-react';
+import { PanelTableSkeleton } from '@/components/dashboard/panel-content-skeleton';
 import { notifications } from '@/lib/notifications';
 import { useSaleDocuments, type Document, type Sale } from '@/lib/hooks/use-sale-documents';
 import { useDocumentPermissions } from '@/lib/hooks/use-document-permissions';
@@ -193,9 +194,8 @@ export function SaleDocumentsList({ saleId, sale, userRole, onDocumentDeleted, o
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-        <span className="ml-2 text-muted-foreground">Carregando documentos...</span>
+      <div className="p-4">
+        <PanelTableSkeleton rows={6} columns={4} />
       </div>
     );
   }

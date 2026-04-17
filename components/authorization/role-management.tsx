@@ -2,7 +2,8 @@ import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Plus, Shield, AlertCircle, Loader2 } from 'lucide-react'
+import { Plus, Shield, AlertCircle } from 'lucide-react'
+import { PanelGridCardsSkeleton, PanelPageHeaderSkeleton } from '@/components/dashboard/panel-content-skeleton'
 import { useAuthorization } from '@/lib/use-authorization'
 import { RoleForm } from './role-form'
 import { RoleList } from './role-list'
@@ -79,11 +80,9 @@ export const RoleManagement: React.FC = () => {
 
   if (loading && (!roles || roles.length === 0)) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex items-center gap-2">
-          <Loader2 className="w-6 h-6 animate-spin" />
-          <span>Carregando roles...</span>
-        </div>
+      <div className="space-y-6 py-4" aria-busy="true" aria-label="A carregar funções">
+        <PanelPageHeaderSkeleton />
+        <PanelGridCardsSkeleton cards={3} />
       </div>
     )
   }

@@ -1,6 +1,6 @@
 /**
- * Estrutura do sidebar Blade (`resources/views/layouts/navbars/sidebar.blade.php`):
- * mesmos `@canany` por agrupador, ordem dos itens, rótulos e condições `session()->has('store')` / `exists('tenant')`.
+ * Estrutura inspirada no sidebar Blade (`resources/views/layouts/navbars/sidebar.blade.php`).
+ * «Vendas» no topo fica acima de «Operacionais»; «Operacionais» não está dentro de «Cadastros» — alinhado ao Next.
  */
 
 export type GplaceNavNode =
@@ -25,32 +25,8 @@ export type GplaceNavNode =
       children: GplaceNavNode[]
     }
 
-/**
- * Permissões do agrupador «Cadastros» — Blade L25–27 (sem freights/banners/size-image/interface/social no @canany exterior).
- */
-const CANANY_CADASTROS = [
-  "customers_view",
-  "leads_view",
-  "tenants_view",
-  "stores_view",
-  "products_view",
-  "sections_view",
-  "measurement-units_view",
-  "grid_view",
-  "brands_view",
-  "cities_view",
-  "states_view",
-  "payment-methods_view",
-  "erp_view",
-  "coupons_view",
-  "businessunits_view",
-]
-
 /** Blade L38: Pessoas (sem `salesman_view` no @canany do grupo). */
 const CANANY_PESSOAS = ["customers_view", "leads_view", "tenants_view", "stores_view"]
-
-/** Blade L93–94: Operacionais. */
-const CANANY_OPERACIONAIS = ["products_view", "sections_view", "measurement-units_view", "grid_view", "brands_view"]
 
 /** Blade L186–187: Gerais (sem `social-medias_view` no @canany do grupo). */
 const CANANY_GERAIS = [
@@ -60,6 +36,21 @@ const CANANY_GERAIS = [
   "erp_view",
   "coupons_view",
   "businessunits_view",
+]
+
+/** «Cadastros» no SPA: só Pessoas + Gerais (Vendas e Operacionais são grupos de topo). */
+const CANANY_CADASTROS = [...CANANY_PESSOAS, ...CANANY_GERAIS]
+
+/** Blade L93–94: núcleo Operacionais. */
+const CANANY_OPERACIONAIS = ["products_view", "sections_view", "measurement-units_view", "grid_view", "brands_view"]
+
+/** Grupo «Operacionais» no topo: inclui itens com @can próprio no Blade (frete, mídias, etc.). */
+const CANANY_OPERACIONAIS_TOP = [
+  ...CANANY_OPERACIONAIS,
+  "freights_view",
+  "banners_view",
+  "size-image_view",
+  "interface-positions_view",
 ]
 
 /** Blade L265 + loja na sessão. */
@@ -93,32 +84,6 @@ export const gplaceBladeNavTree: GplaceNavNode[] = [
       },
       {
         kind: "group",
-        label: "Operacionais",
-        anyOf: CANANY_OPERACIONAIS,
-        children: [
-          { kind: "link", label: "Produtos", href: "/dashboard/admin/produtos", permission: "products_view", requiresStore: true },
-          { kind: "link", label: "Seções", href: "/dashboard/admin/secoes", permission: "sections_view", requiresStore: true },
-          { kind: "link", label: "Grade de produto", href: "/dashboard/admin/pendente/grid", permission: "grid_view", requiresStore: true },
-          { kind: "link", label: "Marca", href: "/dashboard/admin/marcas", permission: "brands_view", requiresTenant: true },
-          {
-            kind: "link",
-            label: "Unidade de medida",
-            href: "/dashboard/admin/unidades-medida",
-            permission: "measurement-units_view",
-          },
-          { kind: "link", label: "Regras de frete", href: "/dashboard/admin/pendente/freights", permission: "freights_view" },
-          { kind: "link", label: "Mídias/Anúncios", href: "/dashboard/admin/pendente/banners", permission: "banners_view", requiresStore: true },
-          { kind: "link", label: "Tamanho mídia", href: "/dashboard/admin/pendente/size-image", permission: "size-image_view" },
-          {
-            kind: "link",
-            label: "Posição na interface",
-            href: "/dashboard/admin/pendente/interface-positions",
-            permission: "interface-positions_view",
-          },
-        ],
-      },
-      {
-        kind: "group",
         label: "Gerais",
         anyOf: CANANY_GERAIS,
         children: [
@@ -144,6 +109,32 @@ export const gplaceBladeNavTree: GplaceNavNode[] = [
     requiresStore: true,
     anyOf: CANANY_VENDAS,
     children: [{ kind: "link", label: "Pedido de Venda", href: "/dashboard/admin/pedidos", permission: "orders_view", requiresStore: true }],
+  },
+  {
+    kind: "group",
+    label: "Operacionais",
+    anyOf: CANANY_OPERACIONAIS_TOP,
+    children: [
+      { kind: "link", label: "Produtos", href: "/dashboard/admin/produtos", permission: "products_view", requiresStore: true },
+      { kind: "link", label: "Seções", href: "/dashboard/admin/secoes", permission: "sections_view", requiresStore: true },
+      { kind: "link", label: "Grade de produto", href: "/dashboard/admin/pendente/grid", permission: "grid_view", requiresStore: true },
+      { kind: "link", label: "Marca", href: "/dashboard/admin/marcas", permission: "brands_view", requiresTenant: true },
+      {
+        kind: "link",
+        label: "Unidade de medida",
+        href: "/dashboard/admin/unidades-medida",
+        permission: "measurement-units_view",
+      },
+      { kind: "link", label: "Regras de frete", href: "/dashboard/admin/pendente/freights", permission: "freights_view" },
+      { kind: "link", label: "Mídias/Anúncios", href: "/dashboard/admin/pendente/banners", permission: "banners_view", requiresStore: true },
+      { kind: "link", label: "Tamanho mídia", href: "/dashboard/admin/pendente/size-image", permission: "size-image_view" },
+      {
+        kind: "link",
+        label: "Posição na interface",
+        href: "/dashboard/admin/pendente/interface-positions",
+        permission: "interface-positions_view",
+      },
+    ],
   },
   {
     kind: "group",

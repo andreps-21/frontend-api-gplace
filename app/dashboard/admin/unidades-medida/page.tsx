@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Loader2 } from "lucide-react"
+import { PanelTableSkeleton } from "@/components/dashboard/panel-content-skeleton"
 import { toast } from "sonner"
 
 type Paginator<T> = { data: T[]; current_page: number; last_page: number; total: number }
@@ -59,9 +60,7 @@ export default function AdminUnidadesMedidaPage() {
         </CardHeader>
         <CardContent>
           {loading && !paginator ? (
-            <div className="flex justify-center py-12 text-muted-foreground">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
+            <PanelTableSkeleton rows={10} columns={4} />
           ) : (
             <>
               <Table>

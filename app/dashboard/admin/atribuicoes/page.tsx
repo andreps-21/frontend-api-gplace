@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Loader2, Shield } from "lucide-react"
+import { PanelCheckboxListSkeleton, PanelTableSkeleton } from "@/components/dashboard/panel-content-skeleton"
 import { toast } from "sonner"
 
 type Paginator<T> = { data: T[]; current_page: number; last_page: number; total: number }
@@ -133,9 +134,7 @@ export default function AtribuicoesGplacePage() {
         </CardHeader>
         <CardContent>
           {loading && !paginator ? (
-            <div className="flex justify-center py-12 text-muted-foreground">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
+            <PanelTableSkeleton rows={10} columns={5} />
           ) : (
             <>
               <Table>
@@ -198,9 +197,7 @@ export default function AtribuicoesGplacePage() {
             <DialogDescription>Marque as permissões e guarde (sincronização total).</DialogDescription>
           </DialogHeader>
           {loadingPerms ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
+            <PanelCheckboxListSkeleton rows={12} />
           ) : (
             <div className="max-h-[55vh] space-y-2 overflow-y-auto rounded-md border p-3">
               {allPerms.map((p) => (

@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react'
 import { useDynamicCategories } from '@/lib/use-dynamic-categories'
 import { FieldConfigResponse } from '@/lib/dynamic-category-service'
 import DynamicField from './dynamic-field'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
+import { PanelStackedFormFieldsSkeleton } from '@/components/dashboard/panel-content-skeleton'
 
 interface DynamicFormProps {
   categoryId: number
@@ -96,12 +97,7 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
   // Validação será feita pelo formulário pai
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-4" />
-        <p className="text-gray-600">Carregando configuração de campos...</p>
-      </div>
-    )
+    return <PanelStackedFormFieldsSkeleton fields={8} />
   }
 
   if (error) {

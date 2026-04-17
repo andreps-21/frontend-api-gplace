@@ -26,8 +26,9 @@ export function LoginForm() {
     return emailRegex.test(email)
   }
 
+  /** Contratantes usam só dígitos do CPF (11) ou CNPJ (14) — não exigir mínimo genérico de 6 caracteres. */
   const validatePassword = (password: string) => {
-    return password.length >= 6
+    return password.trim().length >= 1
   }
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -56,7 +57,7 @@ export function LoginForm() {
     }
     
     if (value && !validatePassword(value)) {
-      setPasswordError("A senha deve ter pelo menos 6 caracteres")
+      setPasswordError("Digite a senha")
     } else {
       setPasswordError("")
     }
@@ -78,12 +79,12 @@ export function LoginForm() {
     }
     
     if (!validatePassword(password)) {
-      setPasswordError("A senha deve ter pelo menos 6 caracteres")
+      setPasswordError("Digite a senha")
       return
     }
 
     try {
-      await login({ email, password })
+      await login({ email: email.trim(), password: password.trim() })
       
       // Salvar preferência de "lembrar-me"
       if (rememberMe) {

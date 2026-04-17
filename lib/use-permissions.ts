@@ -27,7 +27,9 @@ const ROLE_PERMISSIONS: PermissionConfig = {
     'relatorios',
     'gerenciar',
     'financeiro'
-  ]
+  ],
+  /** Ver nota em MODULE_PERMISSIONS['contratante']. */
+  'contratante': ['dashboard'],
 };
 
 // Configuração de módulos específicos por role
@@ -64,6 +66,8 @@ const MODULE_PERMISSIONS: PermissionConfig = {
     'gerenciar-mural',
     'gerenciar-admin-api',
   ],
+  /** Menu TIM legado: titular usa o sidebar Gplace (Spatie); aqui só evita mapa vazio para a chave `contratante`. */
+  'contratante': [],
   'gestor': [
     'vendas-cadastrar',
     'vendas-gerenciar',

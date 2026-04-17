@@ -6,7 +6,7 @@ import { laravelInnerData } from "@/lib/laravel-data"
 import { useGplacePermissions } from "@/lib/use-gplace-permissions"
 import { AccessDenied } from "@/components/ui/access-denied"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -30,20 +30,35 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import {
   AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  FileText,
+  Layers,
   Loader2,
   Package,
+  ScrollText,
   Pencil,
   Plus,
+  Ruler,
   Search,
   Trash2,
 } from "lucide-react"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 
 type Paginator<T> = { data: T[]; current_page: number; last_page: number; total: number; per_page?: number }
 
@@ -70,14 +85,97 @@ type Meta = {
   presentations: Array<{ id: number; name: string }>
 }
 
+const EMPTY_PRODUCT_META: Meta = {
+  sections: [],
+  measurement_units: [],
+  families: [],
+  presentations: [],
+}
+
+/** Passos alinhados ao fluxo «Novo utilizador» do Apollo (stepper + cartão + Voltar/Próximo). */
+const PRODUCT_WIZARD_STEPS = [
+  { id: 1, title: "Identificação", sub: "Referência, descrição do produto/serviço e tipo" },
+  { id: 2, title: "Dados fiscais", sub: "NF-e, NCM e tributação de referência" },
+  { id: 3, title: "Catálogo", sub: "Secção, marca, unidade de medida" },
+  { id: 4, title: "Preços e estoque", sub: "Valores na nota, venda, promoção e quantidades" },
+  { id: 5, title: "Conteúdo e revisão", sub: "Textos e confirmar" },
+] as const
+
+const PRODUCT_WIZARD_STEP_ICONS = [Package, ScrollText, Layers, Ruler, FileText] as const
+
 function num(v: string): number {
   const n = parseFloat(String(v).replace(",", "."))
   return Number.isFinite(n) ? n : 0
 }
 
+/** Valor monetário pt-BR (ex.: «1.234,56») → número. */
+function numMoney(v: string): number {
+  const t = String(v).trim()
+  if (!t) return 0
+  const normalized = t.replace(/\./g, "").replace(",", ".")
+  const n = parseFloat(normalized)
+  return Number.isFinite(n) ? n : 0
+}
+
+function formatPtBrMoney(n: number): string {
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n)
+}
+
+/** Parte inteira só com dígitos → «1.234.567» (pt-BR). */
+function addThousandDots(intDigits: string): string {
+  const clean = intDigits.replace(/\D/g, "")
+  if (clean === "") return ""
+  const trimmed = clean.replace(/^0+(?=\d)/, "")
+  const base = trimmed === "" ? "0" : trimmed
+  return base.replace(/\B(?=(\d{3})+(?!\d))/g, ".")
+}
+
+/**
+ * Máscara monetária pt-BR durante o preenchimento: milhares com «.», decimais após «,» (até 2 casas).
+ * Aceita colar valores já formatados; ignora caracteres inválidos.
+ */
+function formatMoneyWhileTyping(raw: string, allowEmpty: boolean): string {
+  if (allowEmpty && raw.trim() === "") return ""
+  const s = raw.replace(/[^\d.,]/g, "")
+  if (s === "") return allowEmpty ? "" : "0"
+
+  const commaIdx = s.indexOf(",")
+  if (commaIdx === -1) {
+    const digits = s.replace(/\D/g, "")
+    if (digits === "") return allowEmpty ? "" : "0"
+    if (digits === "0") return "0"
+    const intOnly = digits.replace(/^0+(?=\d)/, "") || "0"
+    return addThousandDots(intOnly)
+  }
+
+  const intDigits = s.slice(0, commaIdx).replace(/\D/g, "")
+  const decDigits = s
+    .slice(commaIdx + 1)
+    .replace(/\D/g, "")
+    .slice(0, 2)
+  const intNorm = intDigits === "" ? "0" : intDigits.replace(/^0+(?=\d)/, "") || "0"
+  const intFmt = addThousandDots(intNorm)
+  return intFmt + "," + decDigits
+}
+
+function blurMoneyField(raw: string, allowEmpty: boolean): string {
+  const t = raw.trim()
+  if (allowEmpty && t === "") return ""
+  return formatPtBrMoney(numMoney(t))
+}
+
 function intQty(v: string): number {
   const n = parseInt(String(v).trim(), 10)
   return Number.isFinite(n) ? Math.max(0, n) : 0
+}
+
+/** Apenas dígitos; vazio → null (payload fiscal). */
+function fiscalDigitsOrNull(v: string): string | null {
+  const d = String(v).replace(/\D/g, "")
+  return d.length > 0 ? d : null
 }
 
 function ProdutosListSkeleton({ rowCount = 8 }: { rowCount?: number }) {
@@ -190,6 +288,8 @@ export default function AdminProdutosPage() {
   const [productToDelete, setProductToDelete] = useState<{ id: number; name: string } | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
+  /** Garante rótulos correctos no sheet antes de qualquer await (ex.: «Descrição» em novo produto). */
+  const [productDialogMode, setProductDialogMode] = useState<"create" | "edit">("create")
   const [saving, setSaving] = useState(false)
   const [meta, setMeta] = useState<Meta | null>(null)
   const [brands, setBrands] = useState<Array<{ id: number; name: string }>>([])
@@ -204,6 +304,16 @@ export default function AdminProdutosPage() {
   const [lotWarehouseId, setLotWarehouseId] = useState<string>("")
   const [lotSaving, setLotSaving] = useState(false)
 
+  const [brandQuickOpen, setBrandQuickOpen] = useState(false)
+  const [umQuickOpen, setUmQuickOpen] = useState(false)
+  const [newBrandName, setNewBrandName] = useState("")
+  const [newBrandPublic, setNewBrandPublic] = useState(true)
+  const [newBrandSaving, setNewBrandSaving] = useState(false)
+  const [newUmName, setNewUmName] = useState("")
+  const [newUmInitials, setNewUmInitials] = useState("")
+  const [newUmSaving, setNewUmSaving] = useState(false)
+  const [wizardStep, setWizardStep] = useState(1)
+
   const [form, setForm] = useState({
     reference: "",
     commercial_name: "",
@@ -213,6 +323,7 @@ export default function AdminProdutosPage() {
     tag: "",
     price: "",
     promotion_price: "",
+    invoice_price: "",
     discount: "",
     payment_condition: "",
     weight: "",
@@ -237,7 +348,13 @@ export default function AdminProdutosPage() {
     sku: "",
     is_grid: "0",
     video: "",
-    origin: "1",
+    origin: "0",
+    ncm: "",
+    cest: "",
+    cfop_default: "",
+    csosn_default: "",
+    cst_icms_default: "",
+    nf_number: "",
     quantity: "0",
     min_stock: "",
     stock_change_note: "",
@@ -289,82 +406,173 @@ export default function AdminProdutosPage() {
   }, [])
 
   const loadAux = async () => {
-    const [mRaw, bRaw, pRaw] = await Promise.all([
+    const settled = await Promise.allSettled([
       apiService.getAdminProductFormMeta(),
-      apiService.getBrands(),
+      apiService.getAdminBrands(),
       apiService.getPaymentMethods(),
     ])
-    const m = laravelInnerData<Meta>(mRaw)
-    const b = laravelInnerData<Array<{ id: number; name: string }>>(bRaw)
-    const p = laravelInnerData<Array<{ id: number; name?: string }>>(pRaw)
+
+    const mRaw = settled[0].status === "fulfilled" ? settled[0].value : null
+    const bRaw = settled[1].status === "fulfilled" ? settled[1].value : null
+    const pRaw = settled[2].status === "fulfilled" ? settled[2].value : null
+
+    const m = mRaw ? laravelInnerData<Meta>(mRaw) : EMPTY_PRODUCT_META
+    const b = bRaw ? laravelInnerData<Array<{ id: number; name: string }>>(bRaw) : []
+    const p = pRaw ? laravelInnerData<Array<{ id: number; name?: string }>>(pRaw) : []
+    const brandsList = Array.isArray(b) ? b : []
+    const paymentList = Array.isArray(p) ? p : []
+
     setMeta(m)
-    setBrands(Array.isArray(b) ? b : [])
-    setPaymentOpts(Array.isArray(p) ? p : [])
-    return { meta: m, brands: Array.isArray(b) ? b : [], paymentOpts: Array.isArray(p) ? p : [] }
+    setBrands(brandsList)
+    setPaymentOpts(paymentList)
+
+    if (settled[0].status === "rejected") {
+      console.error(settled[0].reason)
+      toast.error("Não foi possível carregar secções / unidades de medida / famílias.")
+    }
+    if (settled[1].status === "rejected") {
+      console.error(settled[1].reason)
+      toast.error("Não foi possível carregar marcas.")
+    }
+    if (settled[2].status === "rejected") {
+      console.error(settled[2].reason)
+      toast.error("Não foi possível carregar formas de pagamento.")
+    }
+
+    return { meta: m, brands: brandsList, paymentOpts: paymentList }
+  }
+
+  const submitQuickBrand = async () => {
+    const n = newBrandName.trim()
+    if (n.length < 3) {
+      toast.error("Nome da marca: mínimo 3 caracteres.")
+      return
+    }
+    setNewBrandSaving(true)
+    try {
+      const raw = await apiService.createAdminBrand({
+        name: n,
+        is_enabled: true,
+        is_public: newBrandPublic,
+      })
+      const created = laravelInnerData<{ id: number; name: string }>(raw)
+      setBrands((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, "pt")))
+      setForm((f) => ({ ...f, brand_id: String(created.id) }))
+      setBrandQuickOpen(false)
+      setNewBrandName("")
+      toast.success("Marca criada.")
+    } catch (e) {
+      console.error(e)
+      toast.error("Não foi possível criar a marca.")
+    } finally {
+      setNewBrandSaving(false)
+    }
+  }
+
+  const submitQuickUm = async () => {
+    const name = newUmName.trim()
+    const ini = newUmInitials.trim().toUpperCase()
+    if (!name) {
+      toast.error("Indique o nome da unidade de medida.")
+      return
+    }
+    if (!ini || ini.length > 4) {
+      toast.error("Sigla (iniciais): 1 a 4 caracteres.")
+      return
+    }
+    setNewUmSaving(true)
+    try {
+      const raw = await apiService.createAdminMeasurementUnit({
+        name,
+        initials: ini,
+        is_enabled: true,
+      })
+      const created = laravelInnerData<{ id: number; name: string; initials?: string }>(raw)
+      setMeta((prev) => {
+        const base = prev ?? EMPTY_PRODUCT_META
+        const units = [...(base.measurement_units ?? []), created].sort((a, b) =>
+          a.name.localeCompare(b.name, "pt"),
+        )
+        return { ...base, measurement_units: units }
+      })
+      setForm((f) => ({ ...f, um_id: String(created.id) }))
+      setUmQuickOpen(false)
+      setNewUmName("")
+      setNewUmInitials("")
+      toast.success("Unidade de medida criada.")
+    } catch (e) {
+      console.error(e)
+      toast.error("Não foi possível criar a unidade de medida.")
+    } finally {
+      setNewUmSaving(false)
+    }
   }
 
   const openCreate = async () => {
+    setProductDialogMode("create")
     setEditingId(null)
-    try {
-      const { meta: m, brands: bl } = await loadAux()
-      if (!bl.length) {
-        toast.error("Sem marcas activas para esta loja.")
-        return
-      }
-      if (!m.sections?.length || !m.measurement_units?.length) {
-        toast.error("Meta incompleto: secções ou unidades de medida em falta.")
-        return
-      }
-      setPaymentSel([])
-      setExtraSections([])
-      setForm({
-        reference: "",
-        commercial_name: "",
-        description_reference: "",
-        description: "",
-        um_id: String(m.measurement_units[0].id),
-        tag: "",
-        price: "0",
-        promotion_price: "0",
-        discount: "",
-        payment_condition: "",
-        weight: "",
-        width: "1",
-        height: "1",
-        length: "1",
-        cubic_weight: "",
-        brand_id: String(bl[0].id),
-        about: "",
-        recommendation: "",
-        benefits: "",
-        formula: "",
-        application_mode: "",
-        dosage: "",
-        lack: "",
-        other_information: "",
-        is_enabled: "1",
-        type: "P",
-        section_id: String(m.sections[0].id),
-        family_id: "",
-        presentation_id: "",
-        sku: "",
-        is_grid: "0",
-        video: "",
-        origin: "1",
-        quantity: "0",
-        min_stock: "",
-        stock_change_note: "",
-      })
-      setMovements(null)
-      setDialogOpen(true)
-    } catch (e) {
-      console.error(e)
-      toast.error("Erro ao carregar metadados.")
-    }
+    setPaymentSel([])
+    setExtraSections([])
+    setForm({
+      reference: "",
+      commercial_name: "",
+      description_reference: "",
+      description: "",
+      um_id: "",
+      tag: "",
+      price: formatPtBrMoney(0),
+      promotion_price: formatPtBrMoney(0),
+      invoice_price: "",
+      discount: "",
+      payment_condition: "",
+      weight: "",
+      width: "1",
+      height: "1",
+      length: "1",
+      cubic_weight: "",
+      brand_id: "",
+      about: "",
+      recommendation: "",
+      benefits: "",
+      formula: "",
+      application_mode: "",
+      dosage: "",
+      lack: "",
+      other_information: "",
+      is_enabled: "1",
+      type: "P",
+      section_id: "",
+      family_id: "",
+      presentation_id: "",
+      sku: "",
+      is_grid: "0",
+      video: "",
+      origin: "0",
+      ncm: "",
+      cest: "",
+      cfop_default: "",
+      csosn_default: "",
+      cst_icms_default: "",
+      nf_number: "",
+      quantity: "0",
+      min_stock: "",
+      stock_change_note: "",
+    })
+    setMovements(null)
+    setWizardStep(1)
+    const { meta: m } = await loadAux()
+    setForm((prev) => ({
+      ...prev,
+      um_id: m.measurement_units?.length ? String(m.measurement_units[0].id) : prev.um_id,
+      section_id: m.sections?.length ? String(m.sections[0].id) : prev.section_id,
+    }))
+    /** Só abrir o sheet depois de meta/marcas — evita guardar com brand_id ainda vazio antes do segundo setForm. */
+    setDialogOpen(true)
   }
 
   const openEdit = async (row: Record<string, unknown>) => {
     const id = Number(row.id)
+    setProductDialogMode("edit")
     setEditingId(id)
     try {
       await loadAux()
@@ -390,8 +598,12 @@ export default function AdminProdutosPage() {
         description: String(d.description ?? ""),
         um_id: String(d.um_id ?? ""),
         tag: String(d.tag ?? ""),
-        price: String(d.price ?? "0"),
-        promotion_price: String(d.promotion_price ?? "0"),
+        price: formatPtBrMoney(Number(d.price ?? 0)),
+        promotion_price: formatPtBrMoney(Number(d.promotion_price ?? 0)),
+        invoice_price:
+          d.invoice_price != null && d.invoice_price !== ""
+            ? formatPtBrMoney(Number(d.invoice_price))
+            : "",
         discount: d.discount != null ? String(d.discount) : "",
         payment_condition: String(d.payment_condition ?? ""),
         weight: d.weight != null ? String(d.weight) : "",
@@ -399,7 +611,7 @@ export default function AdminProdutosPage() {
         height: String(d.height ?? "1"),
         length: String(d.length ?? "1"),
         cubic_weight: d.cubic_weight != null ? String(d.cubic_weight) : "",
-        brand_id: String(d.brand_id ?? ""),
+        brand_id: d.brand_id != null && d.brand_id !== "" ? String(d.brand_id) : "",
         about: String(d.about ?? ""),
         recommendation: String(d.recommendation ?? ""),
         benefits: String(d.benefits ?? ""),
@@ -416,7 +628,13 @@ export default function AdminProdutosPage() {
         sku: String(d.sku ?? ""),
         is_grid: String(d.is_grid ?? "0"),
         video: String(d.video ?? ""),
-        origin: String(d.origin ?? "1"),
+        origin: String(d.origin ?? "0"),
+        ncm: String(d.ncm ?? ""),
+        cest: String(d.cest ?? ""),
+        cfop_default: String(d.cfop_default ?? ""),
+        csosn_default: String(d.csosn_default ?? ""),
+        cst_icms_default: String(d.cst_icms_default ?? ""),
+        nf_number: String(d.nf_number ?? ""),
         quantity: d.quantity != null ? String(Math.max(0, Math.floor(Number(d.quantity)))) : "0",
         min_stock: d.min_stock != null ? String(Math.max(0, Math.floor(Number(d.min_stock)))) : "",
         stock_change_note: "",
@@ -425,6 +643,7 @@ export default function AdminProdutosPage() {
       setLotDoc("")
       setLotWarehouseId("")
       void loadMovements(id)
+      setWizardStep(1)
       setDialogOpen(true)
     } catch (e) {
       console.error(e)
@@ -471,22 +690,26 @@ export default function AdminProdutosPage() {
   }
 
   const toggleSec = (id: number, checked: boolean) => {
-    const primary = Number(form.section_id)
-    if (id === primary) return
+    const primary = form.section_id.trim() === "" ? null : Number(form.section_id)
+    if (primary != null && !Number.isNaN(primary) && id === primary) return
     setExtraSections((prev) => (checked ? [...prev, id] : prev.filter((x) => x !== id)))
   }
 
   const save = async () => {
-    if (!meta?.measurement_units?.length || !form.um_id) {
-      toast.error("Seleccione a unidade de medida.")
+    const primary = form.section_id.trim() === "" ? null : Number(form.section_id)
+    const sectionIds =
+      primary != null && !Number.isNaN(primary) ? Array.from(new Set([primary, ...extraSections])) : [...extraSections]
+
+    const brandTrim = form.brand_id.trim()
+    const brandParsed = parseInt(brandTrim, 10)
+    const brandId =
+      brandTrim === "" || !Number.isFinite(brandParsed) || brandParsed < 1 ? null : brandParsed
+
+    const umId = parseInt(String(form.um_id).trim(), 10)
+    if (!Number.isFinite(umId) || umId < 1) {
+      toast.error("Seleccione uma unidade de medida no passo «Catálogo».")
       return
     }
-    if (!form.section_id || !form.brand_id) {
-      toast.error("Secção e marca são obrigatórios.")
-      return
-    }
-    const primary = Number(form.section_id)
-    const sectionIds = Array.from(new Set([primary, ...extraSections]))
 
     setSaving(true)
     try {
@@ -494,13 +717,20 @@ export default function AdminProdutosPage() {
         video: form.video.trim() || null,
         reference: form.reference.trim(),
         origin: Number(form.origin),
+        ncm: fiscalDigitsOrNull(form.ncm),
+        cest: fiscalDigitsOrNull(form.cest),
+        cfop_default: fiscalDigitsOrNull(form.cfop_default),
+        csosn_default: fiscalDigitsOrNull(form.csosn_default),
+        cst_icms_default: fiscalDigitsOrNull(form.cst_icms_default),
+        nf_number: form.nf_number.trim() || null,
         commercial_name: form.commercial_name.trim(),
         description_reference: form.description_reference.trim() || null,
         description: form.description.trim() || null,
-        um_id: Number(form.um_id),
+        um_id: umId,
         tag: form.tag.trim() || null,
-        price: num(form.price),
-        promotion_price: num(form.promotion_price),
+        price: numMoney(form.price),
+        promotion_price: numMoney(form.promotion_price),
+        invoice_price: form.invoice_price.trim() !== "" ? numMoney(form.invoice_price) : null,
         discount: form.discount.trim() ? num(form.discount) : null,
         payment_condition: form.payment_condition.trim() || null,
         weight: form.weight.trim() ? num(form.weight) : null,
@@ -508,7 +738,7 @@ export default function AdminProdutosPage() {
         height: num(form.height),
         length: num(form.length),
         cubic_weight: form.cubic_weight.trim() ? num(form.cubic_weight) : null,
-        brand_id: Number(form.brand_id),
+        brand_id: brandId,
         about: form.about.trim() || null,
         recommendation: form.recommendation.trim() || null,
         benefits: form.benefits.trim() || null,
@@ -519,7 +749,7 @@ export default function AdminProdutosPage() {
         other_information: form.other_information.trim() || null,
         is_enabled: form.is_enabled === "1",
         type: form.type,
-        section_id: primary,
+        section_id: primary != null && !Number.isNaN(primary) ? primary : null,
         family_id: form.family_id ? Number(form.family_id) : null,
         presentation_id: form.presentation_id ? Number(form.presentation_id) : null,
         sku: form.sku.trim() || null,
@@ -529,12 +759,6 @@ export default function AdminProdutosPage() {
         stock_change_note: editingId && form.stock_change_note.trim() ? form.stock_change_note.trim() : null,
         payment_methods: paymentSel,
         sections: sectionIds,
-      }
-
-      if (form.is_grid === "1" && !String(payload.description_reference ?? "").trim()) {
-        toast.error("Referência da descrição é obrigatória para grelha.")
-        setSaving(false)
-        return
       }
 
       if (editingId) {
@@ -549,14 +773,29 @@ export default function AdminProdutosPage() {
       void load()
     } catch (e: unknown) {
       console.error(e)
-      const err = e as { response?: { data?: { message?: unknown }; status?: number } }
+      const err = e as {
+        response?: {
+          data?: { message?: unknown; errors?: Record<string, string[] | string> }
+          status?: number
+        }
+      }
       const raw = err.response?.data?.message
+      const errors = err.response?.data?.errors
+      let firstField: string | undefined
+      if (errors && typeof errors === "object") {
+        const key = Object.keys(errors)[0]
+        const val = key ? errors[key] : undefined
+        if (Array.isArray(val) && val[0]) firstField = String(val[0])
+        else if (typeof val === "string") firstField = val
+      }
       const msg =
-        typeof raw === "string" && raw.trim()
-          ? raw.trim()
-          : err.response?.status === 403
-            ? "Sem permissão ou cabeçalho «app» inválido. Confirme NEXT_PUBLIC_APP_TOKEN e permissões."
-            : "Erro ao guardar."
+        firstField && firstField.trim()
+          ? firstField.trim()
+          : typeof raw === "string" && raw.trim()
+            ? raw.trim()
+            : err.response?.status === 403
+              ? "Sem permissão ou cabeçalho «app» inválido. Confirme NEXT_PUBLIC_APP_TOKEN e permissões."
+              : "Erro ao guardar."
       toast.error(msg)
     } finally {
       setSaving(false)
@@ -597,7 +836,7 @@ export default function AdminProdutosPage() {
   const showingTo = rows.length > 0 ? Math.min(page * perPage, listTotal) : 0
   const hasFilters = effectiveSearch.length > 0
 
-  const primarySection = Number(form.section_id)
+  const primarySection = form.section_id.trim() === "" ? null : Number(form.section_id)
 
   const listSection = (() => {
     if (loading) {
@@ -869,7 +1108,7 @@ export default function AdminProdutosPage() {
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     id="search-products"
-                    placeholder="Nome comercial, SKU…"
+                    placeholder="Descrição (nome comercial), SKU…"
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     className="h-9 w-full pl-10"
@@ -882,17 +1121,84 @@ export default function AdminProdutosPage() {
 
         {listSection}
 
-        <Sheet open={dialogOpen} onOpenChange={setDialogOpen}>
-        <SheetContent className="flex h-full max-h-[100dvh] flex-col p-0 !max-w-3xl">
-          <div className="flex h-full min-h-0 flex-col">
-            <SheetHeader>
-              <SheetTitle>{editingId ? `Editar produto #${editingId}` : "Novo produto"}</SheetTitle>
-              <SheetDescription>Campos obrigatórios conforme validação Laravel.</SheetDescription>
-            </SheetHeader>
-            <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto px-6 py-4">
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label>Referência *</Label>
+        <Sheet
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            setDialogOpen(open)
+            if (!open) {
+              setWizardStep(1)
+              setProductDialogMode("create")
+            }
+          }}
+        >
+          <SheetContent className="flex h-full max-h-[100dvh] flex-col p-0 !max-w-3xl">
+            <div className="flex h-full min-h-0 flex-col">
+              <SheetHeader className="space-y-1 border-b px-6 pb-4 pt-6 text-left">
+                <SheetTitle>{editingId ? `Editar produto #${editingId}` : "Novo produto"}</SheetTitle>
+                <SheetDescription>
+                  {PRODUCT_WIZARD_STEPS[wizardStep - 1]?.sub} — Etapa {wizardStep} de {PRODUCT_WIZARD_STEPS.length}
+                </SheetDescription>
+              </SheetHeader>
+
+              <div className="relative border-b bg-muted/30 px-4 py-4 sm:px-6">
+                <div className="absolute left-4 right-4 top-[2.1rem] z-0 hidden h-0.5 bg-border sm:left-8 sm:right-8 sm:block" />
+                <div className="relative z-10 grid grid-cols-5 gap-1 sm:gap-2">
+                  {PRODUCT_WIZARD_STEPS.map((s, idx) => {
+                    const n = idx + 1
+                    const done = wizardStep > n
+                    const active = wizardStep === n
+                    const StepIco = PRODUCT_WIZARD_STEP_ICONS[idx]
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setWizardStep(n)}
+                        className={cn(
+                          "flex flex-col items-center rounded-md p-1 text-center outline-none transition-colors hover:bg-background/60 focus-visible:ring-2 focus-visible:ring-ring",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "mb-1 flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-semibold sm:mb-2 sm:h-10 sm:w-10 sm:text-sm",
+                            done
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : active
+                                ? "border-primary bg-background text-primary"
+                                : "border-muted-foreground/25 bg-background text-muted-foreground",
+                          )}
+                        >
+                          {done ? (
+                            <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5" />
+                          ) : (
+                            <StepIco className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                          )}
+                        </div>
+                        <p className={cn("line-clamp-2 text-[10px] font-medium leading-tight sm:text-xs", active && "text-primary")}>
+                          {s.title}
+                        </p>
+                        <p className="text-[9px] text-muted-foreground sm:text-[10px]">Etapa {n}</p>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto px-6 py-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">{PRODUCT_WIZARD_STEPS[wizardStep - 1]?.title}</CardTitle>
+                    <CardDescription>
+                      {wizardStep === 5
+                        ? "Revise o resumo e complete textos e opções finais antes de guardar."
+                        : "Navegue livremente: toque nas etapas acima, em «Voltar» / «Próximo» ou complete os campos quando quiser."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {wizardStep === 1 ? (
+                      <>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div className="grid gap-2">
+                            <Label>Referência</Label>
                 <Input value={form.reference} onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value }))} disabled={editingId != null} />
               </div>
               <div className="grid gap-2">
@@ -901,10 +1207,10 @@ export default function AdminProdutosPage() {
               </div>
             </div>
             <div className="grid gap-2">
-              <Label>Nome comercial *</Label>
+              <Label>{productDialogMode === "create" ? "Descrição do Produto/Serviço" : "Nome comercial"}</Label>
               <Input value={form.commercial_name} onChange={(e) => setForm((f) => ({ ...f, commercial_name: e.target.value }))} />
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2 max-w-xs">
               <div className="grid gap-2">
                 <Label>Tipo</Label>
                 <Select value={form.type} onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}>
@@ -917,19 +1223,124 @@ export default function AdminProdutosPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid gap-2">
-                <Label>Origem</Label>
-                <Input value={form.origin} onChange={(e) => setForm((f) => ({ ...f, origin: e.target.value }))} />
-              </div>
             </div>
+                      </>
+                    ) : null}
+                    {wizardStep === 2 ? (
+                      <>
+                        <p className="text-xs text-muted-foreground">
+                          Valores padrão do produto; a nota fiscal pode sobrescrever CFOP e tributos conforme a operação.
+                        </p>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div className="grid gap-2 sm:col-span-2">
+                            <Label>Número da nota fiscal</Label>
+                            <Input
+                              value={form.nf_number}
+                              onChange={(e) => setForm((f) => ({ ...f, nf_number: e.target.value }))}
+                              placeholder="Opcional — ex.: n.º da NF de compra ou referência"
+                              maxLength={20}
+                            />
+                          </div>
+                          <div className="grid gap-2 sm:col-span-2">
+                            <Label>Origem da mercadoria (NF-e)</Label>
+                            <Select value={form.origin} onValueChange={(v) => setForm((f) => ({ ...f, origin: v }))}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(
+                                  [
+                                    ["0", "0 — Nacional"],
+                                    ["1", "1 — Estrangeira, importação directa"],
+                                    ["2", "2 — Estrangeira, adquirida no mercado interno"],
+                                    ["3", "3 — Nacional, mercadoria com conteúdo de importação superior a 40%"],
+                                    ["4", "4 — Nacional, processos produtivos sem similares"],
+                                    ["5", "5 — Nacional, mercadoria com conteúdo de importação inferior ou igual a 40%"],
+                                    ["6", "6 — Estrangeira, importação directa, sem similar nacional"],
+                                    ["7", "7 — Estrangeira, mercado interno, sem similar nacional"],
+                                    ["8", "8 — Nacional, mercadoria com conteúdo de importação superior a 70%"],
+                                  ] as const
+                                ).map(([val, lab]) => (
+                                  <SelectItem key={val} value={val}>
+                                    {lab}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div className="grid gap-2">
+                            <Label>NCM</Label>
+                            <Input
+                              inputMode="numeric"
+                              placeholder="Ex.: 12345678"
+                              maxLength={14}
+                              value={form.ncm}
+                              onChange={(e) => setForm((f) => ({ ...f, ncm: e.target.value }))}
+                            />
+                            <p className="text-xs text-muted-foreground">8 dígitos (aceita digitação com ou sem máscara).</p>
+                          </div>
+                          <div className="grid gap-2">
+                            <Label>CEST</Label>
+                            <Input
+                              inputMode="numeric"
+                              placeholder="7 dígitos"
+                              maxLength={10}
+                              value={form.cest}
+                              onChange={(e) => setForm((f) => ({ ...f, cest: e.target.value }))}
+                            />
+                            <p className="text-xs text-muted-foreground">Opcional; substituição tributária / anexo XXVII IPI-ICMS.</p>
+                          </div>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-3">
+                          <div className="grid gap-2">
+                            <Label>CFOP padrão (saída)</Label>
+                            <Input
+                              inputMode="numeric"
+                              placeholder="Ex.: 5102"
+                              maxLength={4}
+                              value={form.cfop_default}
+                              onChange={(e) => setForm((f) => ({ ...f, cfop_default: e.target.value }))}
+                            />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label>CSOSN padrão (Simples Nacional)</Label>
+                            <Input
+                              inputMode="numeric"
+                              placeholder="Ex.: 102"
+                              maxLength={3}
+                              value={form.csosn_default}
+                              onChange={(e) => setForm((f) => ({ ...f, csosn_default: e.target.value }))}
+                            />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label>CST ICMS padrão (Lucro real / presumido)</Label>
+                            <Input
+                              inputMode="numeric"
+                              placeholder="Ex.: 00"
+                              maxLength={2}
+                              value={form.cst_icms_default}
+                              onChange={(e) => setForm((f) => ({ ...f, cst_icms_default: e.target.value }))}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    ) : null}
+                    {wizardStep === 3 ? (
+                      <>
             <div className="grid gap-2 sm:grid-cols-2">
               <div className="grid gap-2">
-                <Label>Secção principal *</Label>
-                <Select value={form.section_id || undefined} onValueChange={(v) => setForm((f) => ({ ...f, section_id: v }))}>
+                <Label>Secção principal</Label>
+                <Select
+                  value={form.section_id.trim() === "" ? "__none__" : form.section_id}
+                  onValueChange={(v) => setForm((f) => ({ ...f, section_id: v === "__none__" ? "" : v }))}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccione" />
+                    <SelectValue placeholder="Opcional" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__none__">— Nenhuma —</SelectItem>
                     {(meta?.sections ?? []).map((s) => (
                       <SelectItem key={s.id} value={String(s.id)}>
                         {s.name}
@@ -939,19 +1350,31 @@ export default function AdminProdutosPage() {
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label>Marca *</Label>
-                <Select value={form.brand_id || undefined} onValueChange={(v) => setForm((f) => ({ ...f, brand_id: v }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {brands.map((b) => (
-                      <SelectItem key={b.id} value={String(b.id)}>
-                        {b.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Marca (opcional)</Label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <Select
+                    className="min-w-0 flex-1"
+                    value={form.brand_id.trim() === "" ? "__none__" : form.brand_id}
+                    onValueChange={(v) => setForm((f) => ({ ...f, brand_id: v === "__none__" ? "" : v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={brands.length ? "— Nenhuma —" : "Sem marcas — pode criar uma"}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Nenhuma —</SelectItem>
+                      {brands.map((b) => (
+                        <SelectItem key={b.id} value={String(b.id)}>
+                          {b.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" variant="secondary" size="sm" className="shrink-0" onClick={() => setBrandQuickOpen(true)}>
+                    Nova marca
+                  </Button>
+                </div>
               </div>
             </div>
             <div className="grid gap-2">
@@ -961,31 +1384,51 @@ export default function AdminProdutosPage() {
                   <label key={s.id} className="flex cursor-pointer items-center gap-2 text-sm">
                     <Checkbox
                       checked={extraSections.includes(s.id)}
-                      disabled={s.id === primarySection}
+                      disabled={primarySection != null && !Number.isNaN(primarySection) && s.id === primarySection}
                       onCheckedChange={(c) => toggleSec(s.id, c === true)}
                     />
                     <span>
-                      {s.name} {s.id === primarySection ? "(principal)" : ""}
+                      {s.name}{" "}
+                      {primarySection != null && !Number.isNaN(primarySection) && s.id === primarySection ? "(principal)" : ""}
                     </span>
                   </label>
                 ))}
               </div>
             </div>
             <div className="grid gap-2 sm:grid-cols-3">
-              <div className="grid gap-2">
-                <Label>UM *</Label>
-                <Select value={form.um_id || undefined} onValueChange={(v) => setForm((f) => ({ ...f, um_id: v }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(meta?.measurement_units ?? []).map((u) => (
-                      <SelectItem key={u.id} value={String(u.id)}>
-                        {u.initials ? `${u.name} (${u.initials})` : u.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid gap-2 sm:col-span-1">
+                <Label>Unidade de medida</Label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <Select
+                    className="min-w-0 flex-1"
+                    value={form.um_id || undefined}
+                    onValueChange={(v) => setForm((f) => ({ ...f, um_id: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={(meta?.measurement_units ?? []).length ? "Seleccione" : "Sem unidades de medida — crie uma"}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(meta?.measurement_units ?? []).map((u) => (
+                        <SelectItem key={u.id} value={String(u.id)}>
+                          {u.initials ? `${u.name} (${u.initials})` : u.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    className="h-9 w-9 shrink-0 text-lg font-medium leading-none"
+                    onClick={() => setUmQuickOpen(true)}
+                    title="Nova unidade de medida"
+                    aria-label="Nova unidade de medida"
+                  >
+                    +
+                  </Button>
+                </div>
               </div>
               <div className="grid gap-2">
                 <Label>Família</Label>
@@ -1026,36 +1469,75 @@ export default function AdminProdutosPage() {
                 </Select>
               </div>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label>Preço *</Label>
-                <Input type="number" step="any" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} />
-              </div>
-              <div className="grid gap-2">
-                <Label>Preço promoção *</Label>
-                <Input
-                  type="number"
-                  step="any"
-                  value={form.promotion_price}
-                  onChange={(e) => setForm((f) => ({ ...f, promotion_price: e.target.value }))}
-                />
+                      </>
+                    ) : null}
+                    {wizardStep === 4 ? (
+                      <>
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-foreground">Preços</h3>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-2">
+                  <Label>Valor na nota</Label>
+                  <Input
+                    inputMode="decimal"
+                    className="tabular-nums"
+                    value={form.invoice_price}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, invoice_price: formatMoneyWhileTyping(e.target.value, true) }))
+                    }
+                    onBlur={() =>
+                      setForm((f) => ({ ...f, invoice_price: blurMoneyField(f.invoice_price, true) }))
+                    }
+                    placeholder="Opcional — ex.: 0,00"
+                  />
+                  <p className="text-xs text-muted-foreground">Referência do valor constante na nota fiscal (ex.: compra).</p>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Valor para venda</Label>
+                  <Input
+                    inputMode="decimal"
+                    className="tabular-nums"
+                    value={form.price}
+                    onChange={(e) => setForm((f) => ({ ...f, price: formatMoneyWhileTyping(e.target.value, false) }))}
+                    onBlur={() => setForm((f) => ({ ...f, price: blurMoneyField(f.price, false) }))}
+                    placeholder="0,00"
+                  />
+                  <p className="text-xs text-muted-foreground">Preço praticado na loja / catálogo.</p>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Valor promocional</Label>
+                  <Input
+                    inputMode="decimal"
+                    className="tabular-nums"
+                    value={form.promotion_price}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, promotion_price: formatMoneyWhileTyping(e.target.value, false) }))
+                    }
+                    onBlur={() => setForm((f) => ({ ...f, promotion_price: blurMoneyField(f.promotion_price, false) }))}
+                    placeholder="0,00"
+                  />
+                  <p className="text-xs text-muted-foreground">Preço em campanha ou promoção.</p>
+                </div>
               </div>
             </div>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="space-y-2 border-t pt-4">
+              <h3 className="text-sm font-semibold text-foreground">Dimensões</h3>
+              <div className="grid gap-2 sm:grid-cols-3">
               <div className="grid gap-2">
-                <Label>Largura *</Label>
+                <Label>Largura</Label>
                 <Input type="number" step="any" value={form.width} onChange={(e) => setForm((f) => ({ ...f, width: e.target.value }))} />
               </div>
               <div className="grid gap-2">
-                <Label>Altura *</Label>
+                <Label>Altura</Label>
                 <Input type="number" step="any" value={form.height} onChange={(e) => setForm((f) => ({ ...f, height: e.target.value }))} />
               </div>
               <div className="grid gap-2">
-                <Label>Comprimento *</Label>
+                <Label>Comprimento</Label>
                 <Input type="number" step="any" value={form.length} onChange={(e) => setForm((f) => ({ ...f, length: e.target.value }))} />
               </div>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            </div>
+            <div className="grid gap-2 border-t pt-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label>Grelha</Label>
                 <Select value={form.is_grid} onValueChange={(v) => setForm((f) => ({ ...f, is_grid: v }))}>
@@ -1073,9 +1555,11 @@ export default function AdminProdutosPage() {
                 <Input value={form.description_reference} onChange={(e) => setForm((f) => ({ ...f, description_reference: e.target.value }))} />
               </div>
             </div>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="space-y-2 border-t pt-4">
+              <h3 className="text-sm font-semibold text-foreground">Estoque</h3>
+              <div className="grid gap-2 sm:grid-cols-3">
               <div className="grid gap-2">
-                <Label>Quantidade em estoque *</Label>
+                <Label>Quantidade</Label>
                 <Input
                   type="number"
                   min={0}
@@ -1087,7 +1571,7 @@ export default function AdminProdutosPage() {
                 <p className="text-xs text-muted-foreground">Saldo na loja; pedidos na loja online baixam este valor.</p>
               </div>
               <div className="grid gap-2">
-                <Label>Stock mínimo (alerta)</Label>
+                <Label>Estoque mínimo (alerta)</Label>
                 <Input
                   type="number"
                   min={0}
@@ -1097,7 +1581,7 @@ export default function AdminProdutosPage() {
                   value={form.min_stock}
                   onChange={(e) => setForm((f) => ({ ...f, min_stock: e.target.value }))}
                 />
-                <p className="text-xs text-muted-foreground">Lista assinala «Baixo» quando saldo ≤ este valor.</p>
+                <p className="text-xs text-muted-foreground">Lista assinala «Baixo» quando o saldo ≤ este valor.</p>
               </div>
               <div className="grid gap-2">
                 <Label>Activo</Label>
@@ -1112,9 +1596,10 @@ export default function AdminProdutosPage() {
                 </Select>
               </div>
             </div>
+            </div>
             {editingId ? (
               <div className="grid gap-2">
-                <Label>Nota do ajuste de stock (opcional)</Label>
+                <Label>Nota do ajuste de estoque (opcional)</Label>
                 <Textarea
                   rows={2}
                   placeholder="Motivo da alteração manual de quantidade…"
@@ -1198,6 +1683,91 @@ export default function AdminProdutosPage() {
                 </Button>
               </details>
             ) : null}
+                      </>
+                    ) : null}
+                    {wizardStep === 5 ? (
+                      <>
+                        <dl className="grid gap-3 rounded-lg border bg-muted/40 p-4 text-sm sm:grid-cols-2">
+                          <div>
+                            <dt className="text-xs text-muted-foreground">Referência</dt>
+                            <dd className="font-medium">{form.reference.trim() || "—"}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">
+                              {productDialogMode === "create" ? "Descrição do Produto/Serviço" : "Nome comercial"}
+                            </dt>
+                            <dd className="font-medium">{form.commercial_name.trim() || "—"}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">Secção principal</dt>
+                            <dd className="font-medium">
+                              {form.section_id.trim() === ""
+                                ? "— Nenhuma —"
+                                : (meta?.sections ?? []).find((sec) => String(sec.id) === form.section_id)?.name ?? form.section_id}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">Marca (opcional)</dt>
+                            <dd className="font-medium">
+                              {form.brand_id.trim() === ""
+                                ? "—"
+                                : (brands.find((b) => String(b.id) === form.brand_id)?.name ?? `#${form.brand_id}`)}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">Unidade de medida</dt>
+                            <dd className="font-medium">
+                              {(() => {
+                                const u = (meta?.measurement_units ?? []).find((x) => String(x.id) === form.um_id)
+                                if (!u) return form.um_id ? `#${form.um_id}` : "—"
+                                return u.initials ? `${u.name} (${u.initials})` : u.name
+                              })()}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">Preços (nota / venda / promoção)</dt>
+                            <dd className="font-medium tabular-nums">
+                              {form.invoice_price.trim() !== "" ? form.invoice_price : "—"} / {form.price} / {form.promotion_price}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">Dimensões (L × A × C)</dt>
+                            <dd className="font-medium tabular-nums">
+                              {form.width} × {form.height} × {form.length}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">Quantidade / mínimo</dt>
+                            <dd className="font-medium tabular-nums">
+                              {form.quantity}
+                              {form.min_stock.trim() !== "" ? ` / mín. ${form.min_stock}` : ""}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">N.º nota fiscal</dt>
+                            <dd className="font-medium">{form.nf_number.trim() || "—"}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">Origem (NF-e)</dt>
+                            <dd className="font-medium tabular-nums">{form.origin}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">NCM</dt>
+                            <dd className="font-medium tabular-nums">{fiscalDigitsOrNull(form.ncm) ?? "—"}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">CEST</dt>
+                            <dd className="font-medium tabular-nums">{fiscalDigitsOrNull(form.cest) ?? "—"}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">CFOP / CSOSN / CST ICMS</dt>
+                            <dd className="font-medium tabular-nums">
+                              {[fiscalDigitsOrNull(form.cfop_default), fiscalDigitsOrNull(form.csosn_default), fiscalDigitsOrNull(form.cst_icms_default)]
+                                .filter(Boolean)
+                                .join(" / ") || "—"}
+                            </dd>
+                          </div>
+                        </dl>
             <div className="grid gap-2">
               <Label>Métodos de pagamento</Label>
               <div className="max-h-36 space-y-2 overflow-y-auto rounded-md border p-3">
@@ -1278,18 +1848,122 @@ export default function AdminProdutosPage() {
               <Label>Vídeo (URL)</Label>
               <Input value={form.video} onChange={(e) => setForm((f) => ({ ...f, video: e.target.value }))} />
             </div>
+                      </>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              </div>
+              <SheetFooter className="shrink-0 flex-col gap-3 border-t bg-background px-6 py-3 sm:flex-row sm:items-center sm:justify-between sm:space-x-2">
+                <Button type="button" variant="ghost" size="sm" className="w-full sm:w-auto" onClick={() => setDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:justify-end">
+                  {wizardStep > 1 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full sm:w-auto"
+                      onClick={() => setWizardStep((s) => Math.max(1, s - 1))}
+                    >
+                      <ChevronLeft className="mr-1 h-4 w-4" />
+                      Voltar
+                    </Button>
+                  ) : null}
+                  {wizardStep < 5 ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="w-full sm:w-auto"
+                      onClick={() => setWizardStep((s) => Math.min(5, s + 1))}
+                    >
+                      Próximo
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <Button type="button" size="sm" className="w-full sm:w-auto" onClick={() => void save()} disabled={saving}>
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? "Guardar" : "Criar"}
+                    </Button>
+                  )}
+                </div>
+              </SheetFooter>
             </div>
-            <SheetFooter className="sm:space-x-2">
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+          </SheetContent>
+        </Sheet>
+
+        <Dialog open={brandQuickOpen} onOpenChange={setBrandQuickOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Nova marca</DialogTitle>
+              <DialogDescription>
+                A marca fica associada ao tenant da loja activa (mesmo fluxo que «Marca» no menu).
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-3 py-2">
+              <div className="grid gap-2">
+                <Label htmlFor="quick-brand-name">Nome (mín. 3 caracteres)</Label>
+                <Input
+                  id="quick-brand-name"
+                  value={newBrandName}
+                  onChange={(e) => setNewBrandName(e.target.value)}
+                  placeholder="Ex.: Minha marca"
+                  maxLength={30}
+                />
+              </div>
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <Checkbox checked={newBrandPublic} onCheckedChange={(c) => setNewBrandPublic(c === true)} />
+                Visível no catálogo público (is_public)
+              </label>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setBrandQuickOpen(false)}>
                 Cancelar
               </Button>
-              <Button type="button" onClick={() => void save()} disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? "Guardar" : "Criar"}
+              <Button type="button" disabled={newBrandSaving} onClick={() => void submitQuickBrand()}>
+                {newBrandSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Criar marca"}
               </Button>
-            </SheetFooter>
-          </div>
-        </SheetContent>
-        </Sheet>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={umQuickOpen} onOpenChange={setUmQuickOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Nova unidade de medida</DialogTitle>
+              <DialogDescription>Unidade de medida global (partilhada por lojas), como no cadastro Blade.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-3 py-2">
+              <div className="grid gap-2">
+                <Label htmlFor="quick-um-initials">Sigla (1–4 caracteres)</Label>
+                <Input
+                  id="quick-um-initials"
+                  value={newUmInitials}
+                  onChange={(e) => setNewUmInitials(e.target.value.toUpperCase())}
+                  maxLength={4}
+                  placeholder="UN"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="quick-um-name">Nome</Label>
+                <Input
+                  id="quick-um-name"
+                  value={newUmName}
+                  onChange={(e) => setNewUmName(e.target.value)}
+                  placeholder="Ex.: Unidade"
+                  maxLength={20}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setUmQuickOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="button" disabled={newUmSaving} onClick={() => void submitQuickUm()}>
+                {newUmSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Criar unidade"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <AlertDialog
           open={deleteDialogOpen}

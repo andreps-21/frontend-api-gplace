@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2 } from "lucide-react"
+import { PanelFormPageSkeleton } from "@/components/dashboard/panel-content-skeleton"
 import { toast } from "sonner"
 
 type SettingsBundle = {
@@ -134,12 +135,7 @@ export default function ConfiguracaoLojaGplacePage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center gap-2 text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin" />
-        A carregar…
-      </div>
-    )
+    return <PanelFormPageSkeleton />
   }
 
   return (

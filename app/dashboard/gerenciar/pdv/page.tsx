@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CheckCircle2, AlertCircle } from "lucide-react"
 import { useState, useEffect } from "react"
 import { apiService, Establishment } from "@/lib/api"
+import { PanelGridCardsSkeleton, PanelPageHeaderSkeleton } from "@/components/dashboard/panel-content-skeleton"
 
 export default function PDVPage() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -194,11 +195,9 @@ export default function PDVPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Carregando estabelecimentos...</p>
-        </div>
+      <div className="min-h-screen space-y-6 p-6" aria-busy="true" aria-label="A carregar pontos de venda">
+        <PanelPageHeaderSkeleton />
+        <PanelGridCardsSkeleton cards={6} />
       </div>
     )
   }

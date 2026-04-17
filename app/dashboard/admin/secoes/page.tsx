@@ -8,6 +8,7 @@ import { AccessDenied } from "@/components/ui/access-denied"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2 } from "lucide-react"
+import { PanelTallBlockSkeleton } from "@/components/dashboard/panel-content-skeleton"
 import { toast } from "sonner"
 
 export default function AdminSecoesPage() {
@@ -53,9 +54,7 @@ export default function AdminSecoesPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex justify-center py-12 text-muted-foreground">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
+            <PanelTallBlockSkeleton />
           ) : (
             <pre className="max-h-[70vh] overflow-auto rounded-md border bg-muted/30 p-4 text-xs">{JSON.stringify(tree, null, 2)}</pre>
           )}

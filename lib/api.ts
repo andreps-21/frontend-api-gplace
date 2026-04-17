@@ -679,7 +679,10 @@ class ApiService {
     }
   }
 
-  /** Marcas da loja (header `app`). */
+  /**
+   * Marcas públicas do catálogo (GET `/brands`, middleware `app`) — só `is_enabled` + `is_public`.
+   * No painel de produtos usar `getAdminBrands()` (`/admin/brands`, tenant da loja).
+   */
   async getBrands(): Promise<ApiResponse<Array<{ id: number; name: string; image?: string; image_url?: string }>>> {
     const response = await this.api.get('/brands');
     return response.data;

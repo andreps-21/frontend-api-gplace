@@ -6,6 +6,8 @@ export function roleKeyForModuleAccess(apiRole: string | null | undefined): stri
   if (apiRole == null || apiRole === '') return null
   const r = String(apiRole).toLowerCase()
   if (r === 'administrador' || r === 'master') return 'gestor'
+  // Spatie: papel por titular `contratante-{slug}-{id}` — mesmo conjunto TIM que `contratante`.
+  if (r === 'contratante' || r.startsWith('contratante-')) return 'contratante'
   return r
 }
 
@@ -13,4 +15,10 @@ export function roleKeyForModuleAccess(apiRole: string | null | undefined): stri
 export function isGestorLevelRole(apiRole: string | null | undefined): boolean {
   const r = (apiRole || '').toLowerCase()
   return r === 'gestor' || r === 'master' || r === 'administrador'
+}
+
+/** Titular (papel modelo ou réplica `contratante-*`). Usado para activar menu Gplace alinhado ao Blade. */
+export function isContratanteTitularRole(apiRole: string | null | undefined): boolean {
+  const r = (apiRole || '').toLowerCase()
+  return r === 'contratante' || r.startsWith('contratante-')
 }

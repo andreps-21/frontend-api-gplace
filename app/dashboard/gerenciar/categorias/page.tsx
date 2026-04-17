@@ -14,7 +14,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Loader2, Settings, Plus, X } from 'lucide-react'
+import { Settings, Plus, X } from 'lucide-react'
+import { PanelGridCardsSkeleton, PanelPageHeaderSkeleton } from '@/components/dashboard/panel-content-skeleton'
 import { notifications } from '@/lib/notifications'
 
 interface Category {
@@ -212,11 +213,9 @@ const CategoryManagement: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Carregando categorias...</p>
-        </div>
+      <div className="min-h-screen space-y-6 p-6" aria-busy="true" aria-label="A carregar categorias">
+        <PanelPageHeaderSkeleton />
+        <PanelGridCardsSkeleton cards={6} />
       </div>
     )
   }

@@ -14,6 +14,7 @@ import { useAuth } from "@/lib/auth"
 import { usePermissions } from "@/lib/use-permissions"
 import { apiService, type EstablishmentReportItem } from "@/lib/api"
 import { ProtectedPage } from "@/components/auth/protected-page"
+import { PanelTableSkeleton } from "@/components/dashboard/panel-content-skeleton"
 
 interface RankingLoja {
   posicao: number
@@ -593,9 +594,7 @@ export default function RelatorioLojaPage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-              </div>
+              <PanelTableSkeleton rows={10} columns={6} />
             ) : ranking.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 Nenhum dado encontrado para o período selecionado

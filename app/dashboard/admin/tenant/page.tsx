@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { apiService } from "@/lib/api"
-import { laravelInnerData } from "@/lib/laravel-data"
+import { laravelInnerData, laravelValidationErrorText } from "@/lib/laravel-data"
 import { useGplacePermissions } from "@/lib/use-gplace-permissions"
 import { AccessDenied } from "@/components/ui/access-denied"
 import { StateCitySelects } from "@/components/admin/state-city-selects"
@@ -33,9 +33,27 @@ import {
 } from "@/components/ui/alert-dialog"
 import { AlertTriangle, ChevronLeft, ChevronRight, Loader2, Mail, Pencil, Plus, Search, Trash2, Users } from "lucide-react"
 import { toast } from "sonner"
-import { maskCpfCnpj, maskPhone, unmaskDocument, unmaskPhone } from "@/lib/masks"
+import { isValidCNPJ, isValidCPF, maskCpfCnpj, maskPhone, unmaskDocument, unmaskPhone } from "@/lib/masks"
 
 type Paginator<T> = { data: T[]; current_page: number; last_page: number; total: number; per_page?: number }
+
+/** Mensagem amigável antes do POST; alinha-se à regra API `CpfCnpj`. */
+function validateBrazilianTaxId(raw: string): string | null {
+  const digits = unmaskDocument(raw.trim())
+  if (digits.length === 0) {
+    return "Preencha o CPF ou o CNPJ."
+  }
+  if (digits.length !== 11 && digits.length !== 14) {
+    return "Use 11 dígitos para CPF ou 14 dígitos para CNPJ. O e-mail vai no campo «E-mail»."
+  }
+  if (digits.length === 11 && !isValidCPF(raw)) {
+    return "O CPF informado é inválido."
+  }
+  if (digits.length === 14 && !isValidCNPJ(raw)) {
+    return "O CNPJ informado é inválido."
+  }
+  return null
+}
 
 function readCityId(d: Record<string, unknown>): number | null {
   const v = d.city_id
@@ -286,6 +304,11 @@ export default function AdminTenantPage() {
   }
 
   const save = async () => {
+    const nifErr = validateBrazilianTaxId(form.nif)
+    if (nifErr) {
+      toast.error(nifErr)
+      return
+    }
     if (!cityId) {
       toast.error("Seleccione cidade ou dados incompletos.")
       return
@@ -296,6 +319,15 @@ export default function AdminTenantPage() {
     }
     setSaving(true)
     try {
+      const cityIdNum = parseInt(String(cityId).replace(/\D/g, ""), 10)
+      if (!Number.isFinite(cityIdNum) || cityIdNum < 1) {
+        toast.error("Cidade inválida. Seleccione o estado e a cidade novamente.")
+        setSaving(false)
+        return
+      }
+      const dueDayNum = parseInt(String(form.due_day), 10)
+      const signatureNum = parseInt(String(form.signature), 10)
+      const valueNum = parseFloat(String(form.value).replace(",", "."))
       const payload: Record<string, unknown> = {
         name: form.name.trim(),
         formal_name: form.formal_name.trim(),
@@ -303,15 +335,15 @@ export default function AdminTenantPage() {
         email: form.email.trim(),
         phone: unmaskPhone(form.phone.trim()),
         street: form.street.trim(),
-        city_id: Number(cityId),
+        city_id: cityIdNum,
         contact: null,
         contact_phone: null,
         status: form.status,
         dt_accession: form.dt_accession,
         due_date: form.due_date,
-        due_day: Number(form.due_day),
-        value: parseFloat(String(form.value).replace(",", ".")) || 0,
-        signature: Number(form.signature),
+        due_day: Number.isFinite(dueDayNum) ? dueDayNum : 5,
+        value: Number.isFinite(valueNum) ? valueNum : 0,
+        signature: Number.isFinite(signatureNum) ? signatureNum : 1,
       }
       if (dialogMode === "create") {
         const raw = await apiService.createAdminTenant(payload)
@@ -325,14 +357,23 @@ export default function AdminTenantPage() {
       void load()
     } catch (e: unknown) {
       console.error(e)
-      const err = e as { response?: { data?: { message?: unknown }; status?: number } }
-      const raw = err.response?.data?.message
-      const msg =
+      const err = e as { response?: { data?: unknown; status?: number } }
+      const body = err.response?.data
+      const validation = laravelValidationErrorText(body)
+      const raw =
+        body !== null && typeof body === "object" && "message" in body
+          ? (body as { message?: unknown }).message
+          : undefined
+      const top =
         typeof raw === "string" && raw.trim()
           ? raw.trim()
-          : err.response?.status === 403
-            ? "Sem permissão ou cabeçalho «app» inválido. Confirme NEXT_PUBLIC_APP_TOKEN e permissões de contratantes."
-            : "Erro ao guardar."
+          : ""
+      const msg =
+        validation ||
+        (top && top !== "Erro de validação." ? top : "") ||
+        (err.response?.status === 403
+          ? "Sem permissão ou cabeçalho «app» inválido. Confirme NEXT_PUBLIC_APP_TOKEN e permissões de contratantes."
+          : "Erro ao guardar.")
       toast.error(msg)
     } finally {
       setSaving(false)
@@ -720,10 +761,15 @@ export default function AdminTenantPage() {
                   <Input value={form.formal_name} onChange={(e) => setForm((f) => ({ ...f, formal_name: e.target.value }))} />
                 </div>
                 <div className="grid gap-2">
-                  <Label>CPF/CNPJ</Label>
+                  <Label htmlFor="tenant-nif">CPF/CNPJ</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Apenas documento brasileiro (11 ou 14 dígitos). O e-mail vai no campo seguinte.
+                  </p>
                   <Input
+                    id="tenant-nif"
                     inputMode="numeric"
                     autoComplete="off"
+                    placeholder="000.000.000-00 ou 00.000.000/0001-00"
                     value={form.nif}
                     onChange={(e) => setForm((f) => ({ ...f, nif: maskCpfCnpj(e.target.value) }))}
                   />

@@ -4,7 +4,8 @@
 import React from 'react'
 import { useDocuments } from '@/lib/use-documents'
 import { Button } from '@/components/ui/button'
-import { Download, Trash2, FileText, Image, File, AlertCircle, Loader2 } from 'lucide-react'
+import { Download, Trash2, FileText, Image, File, AlertCircle } from 'lucide-react'
+import { PanelTableSkeleton } from '@/components/dashboard/panel-content-skeleton'
 
 interface DocumentListProps {
   saleId: number | null
@@ -73,9 +74,8 @@ export default function DocumentList({ saleId, canDelete = false }: DocumentList
 
   if (loading) {
     return (
-      <div className="document-list-loading text-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-        <p className="text-gray-600">Carregando documentos...</p>
+      <div className="document-list-loading py-8">
+        <PanelTableSkeleton rows={6} columns={4} />
       </div>
     )
   }

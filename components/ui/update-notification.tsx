@@ -16,31 +16,31 @@ export function UpdateNotification({ isVisible, onUpdate, onDismiss }: UpdateNot
 
   return (
     <div className="fixed top-4 right-4 z-50 max-w-sm">
-      <Alert className="border-blue-200 bg-blue-50 shadow-lg">
+      <Alert className="border-[#262f73] bg-[#2f3a8f] text-white shadow-lg">
         <div className="flex items-start gap-3">
-          <Download className="h-5 w-5 text-blue-600 mt-0.5" />
+          <Download className="mt-0.5 h-5 w-5 shrink-0 text-white/90" />
           <div className="flex-1">
-            <AlertDescription className="text-blue-800">
+            <AlertDescription className="text-white/95 [&_strong]:text-white">
               <strong>Atualização disponível!</strong>
               <br />
               Uma nova versão do sistema está disponível. Clique em "Atualizar" para obter as últimas melhorias.
             </AlertDescription>
-            <div className="flex gap-2 mt-3">
+            <div className="mt-3 flex gap-2">
               <Button
                 size="sm"
                 onClick={onUpdate}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-white text-[#2f3a8f] hover:bg-white/90"
               >
-                <RefreshCw className="h-4 w-4 mr-2" />
+                <RefreshCw className="mr-2 h-4 w-4" />
                 Atualizar
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={onDismiss}
-                className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                className="border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white"
               >
-                <X className="h-4 w-4 mr-2" />
+                <X className="mr-2 h-4 w-4" />
                 Depois
               </Button>
             </div>

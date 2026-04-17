@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ShoppingCart, TrendingUp, Users, Target, Loader2, Wifi, Smartphone, Headphones, Coins, Cake } from "lucide-react"
+import { ShoppingCart, TrendingUp, Users, Target, Wifi, Smartphone, Headphones, Coins, Cake } from "lucide-react"
+import { DashboardHomeSkeleton } from "@/components/dashboard/dashboard-home-skeleton"
 import { apiService } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { isGestorLevelRole } from "@/lib/permissions-role"
@@ -386,14 +387,7 @@ export default function DashboardPage() {
 ]
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="mx-auto mb-4 h-12 w-12 animate-spin text-blue-600" />
-          <p className="text-muted-foreground">Carregando dashboard...</p>
-        </div>
-      </div>
-    )
+    return <DashboardHomeSkeleton />
   }
 
   return (

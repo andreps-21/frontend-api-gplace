@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react"
+import { PanelTableSkeleton } from "@/components/dashboard/panel-content-skeleton"
 import { toast } from "sonner"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -164,9 +165,7 @@ export default function CatalogosGplacePage() {
         </CardHeader>
         <CardContent>
           {loading && !paginator ? (
-            <div className="flex justify-center py-12 text-muted-foreground">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
+            <PanelTableSkeleton rows={10} columns={5} />
           ) : (
             <>
               <Table>

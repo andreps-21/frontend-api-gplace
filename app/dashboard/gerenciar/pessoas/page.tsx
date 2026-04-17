@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CheckCircle2, AlertCircle } from "lucide-react"
 import { apiService, Person, Customer } from "@/lib/api"
 import { useUserRole } from "@/lib/use-user-role"
+import { PanelGridCardsSkeleton, PanelTableSkeleton } from "@/components/dashboard/panel-content-skeleton"
 
 const mockPessoas = [
   {
@@ -1192,9 +1193,9 @@ export default function PessoasPage() {
             
             <div className="p-6">
               {loadingSales ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-                  <span className="ml-2 text-muted-foreground">Carregando compras...</span>
+                <div className="space-y-4 py-4">
+                  <PanelGridCardsSkeleton cards={3} />
+                  <PanelTableSkeleton rows={6} columns={4} />
                 </div>
               ) : clientSales.length > 0 ? (
                 <div className="space-y-4">
