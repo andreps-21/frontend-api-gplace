@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Pencil } from "lucide-react"
+import { Loader2, Pencil, Plus } from "lucide-react"
 import { toast } from "sonner"
 
 type Paginator<T> = { data: T[]; current_page: number; last_page: number; total: number }
@@ -40,6 +40,7 @@ export default function AdminTenantPage() {
   const [searchInput, setSearchInput] = useState("")
   const [paginator, setPaginator] = useState<Paginator<Record<string, unknown>> | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [dialogMode, setDialogMode] = useState<"create" | "edit">("edit")
   const [tenantId, setTenantId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [stateId, setStateId] = useState("")
@@ -79,13 +80,47 @@ export default function AdminTenantPage() {
     void load()
   }, [load])
 
-  const openEdit = async () => {
+  const defaultCreateForm = () => {
+    const today = new Date()
+    const due = new Date(today)
+    due.setFullYear(due.getFullYear() + 1)
+    const iso = (d: Date) => d.toISOString().slice(0, 10)
+    return {
+      name: "",
+      formal_name: "",
+      nif: "",
+      email: "",
+      phone: "",
+      street: "",
+      contact: "",
+      contact_phone: "",
+      status: "1",
+      dt_accession: iso(today),
+      due_date: iso(due),
+      due_day: "5",
+      value: "0",
+      signature: "1",
+    }
+  }
+
+  const openCreate = () => {
+    setDialogMode("create")
+    setTenantId(null)
+    setStateId("")
+    setCityId("")
+    setForm(defaultCreateForm())
+    setDialogOpen(true)
+  }
+
+  const openEdit = async (idArg?: number) => {
     const first = paginator?.data?.[0]
-    if (!first?.id) {
+    const rawId = idArg ?? (first?.id != null ? Number(first.id) : NaN)
+    if (Number.isNaN(rawId)) {
       toast.error("Sem titular na listagem.")
       return
     }
-    const id = Number(first.id)
+    const id = rawId
+    setDialogMode("edit")
     setTenantId(id)
     try {
       const raw = await apiService.getAdminTenant(id)
@@ -123,8 +158,12 @@ export default function AdminTenantPage() {
   }
 
   const save = async () => {
-    if (!tenantId || !cityId) {
+    if (!cityId) {
       toast.error("Seleccione cidade ou dados incompletos.")
+      return
+    }
+    if (dialogMode === "edit" && !tenantId) {
+      toast.error("ID inválido.")
       return
     }
     setSaving(true)
@@ -136,7 +175,7 @@ export default function AdminTenantPage() {
         email: form.email.trim(),
         phone: form.phone.trim(),
         street: form.street.trim(),
-        city_id: cityId,
+        city_id: Number(cityId),
         contact: form.contact.trim() || null,
         contact_phone: form.contact_phone.trim() || null,
         status: form.status,
@@ -146,8 +185,14 @@ export default function AdminTenantPage() {
         value: parseFloat(String(form.value).replace(",", ".")) || 0,
         signature: Number(form.signature),
       }
-      await apiService.updateAdminTenant(tenantId, payload)
-      toast.success("Titular actualizado.")
+      if (dialogMode === "create") {
+        const raw = await apiService.createAdminTenant(payload)
+        const msg = typeof raw?.message === "string" && raw.message.trim() ? raw.message.trim() : "Contratante criado."
+        toast.success(msg)
+      } else {
+        await apiService.updateAdminTenant(tenantId!, payload)
+        toast.success("Titular actualizado.")
+      }
       setDialogOpen(false)
       void load()
     } catch (e) {
@@ -162,21 +207,29 @@ export default function AdminTenantPage() {
     return <AccessDenied />
   }
 
+  /** API permite PUT no próprio tenant da loja sem `tenants_edit`; listagem completa exige `tenants_edit` por linha. */
+  const mayEditTenantRow = can("tenants_edit") || (paginator != null && paginator.total === 1)
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Titular (tenant)</h1>
-        <p className="text-muted-foreground mt-1 text-sm">Edição do tenant da loja actual (header <code className="text-xs">app</code>).</p>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Contratantes (tenants): com permissão de criar/editar vê a listagem completa; caso contrário apenas o titular da loja do header{" "}
+          <code className="text-xs">app</code>.
+        </p>
       </div>
 
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <CardTitle>Listagem</CardTitle>
-            <Button type="button" variant="secondary" size="sm" onClick={() => void openEdit()} disabled={!paginator?.data?.length}>
-              <Pencil className="mr-1 h-4 w-4" />
-              Editar titular
-            </Button>
+            {can("tenants_create") ? (
+              <Button type="button" size="sm" onClick={() => openCreate()}>
+                <Plus className="mr-1 h-4 w-4" />
+                Novo contratante
+              </Button>
+            ) : null}
           </div>
           <form
             className="flex w-full max-w-md gap-2"
@@ -207,6 +260,7 @@ export default function AdminTenantPage() {
                     <TableHead>NIF</TableHead>
                     <TableHead>Cidade</TableHead>
                     <TableHead>Situação</TableHead>
+                    <TableHead className="w-[120px] text-right">Acções</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -217,6 +271,19 @@ export default function AdminTenantPage() {
                       <TableCell>{String(row.nif ?? "")}</TableCell>
                       <TableCell>{String(row.city ?? "")}</TableCell>
                       <TableCell>{String(row.status ?? "")}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => void openEdit(Number(row.id))}
+                          disabled={!mayEditTenantRow}
+                          title={!mayEditTenantRow ? "Sem permissão para editar este titular" : "Editar"}
+                        >
+                          <Pencil className="mr-1 h-4 w-4" />
+                          Editar
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -250,8 +317,12 @@ export default function AdminTenantPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Editar tenant #{tenantId}</DialogTitle>
-            <DialogDescription>Campos conforme validação da API admin.</DialogDescription>
+            <DialogTitle>{dialogMode === "create" ? "Novo contratante" : `Editar tenant #${tenantId}`}</DialogTitle>
+            <DialogDescription>
+              {dialogMode === "create"
+                ? "Após criar, a senha inicial do utilizador é apenas os dígitos do NIF (como no painel Blade)."
+                : "Campos conforme validação da API admin."}
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 py-2">
             <div className="grid gap-2">
@@ -361,7 +432,7 @@ export default function AdminTenantPage() {
               Cancelar
             </Button>
             <Button type="button" onClick={() => void save()} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar"}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : dialogMode === "create" ? "Criar" : "Guardar"}
             </Button>
           </DialogFooter>
         </DialogContent>

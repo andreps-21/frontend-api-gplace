@@ -1702,6 +1702,11 @@ class ApiService {
     return response.data;
   }
 
+  async createAdminTenant(payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post('/admin/tenants', payload);
+    return response.data;
+  }
+
   async updateAdminTenant(id: number, payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
     const response = await this.api.put(`/admin/tenants/${id}`, payload);
     return response.data;
