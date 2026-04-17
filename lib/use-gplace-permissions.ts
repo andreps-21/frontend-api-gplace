@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth"
 import { usePermissions } from "@/lib/use-permissions"
 import type { GplaceNavNode } from "@/lib/gplace-blade-nav"
 import { isUiPreview } from "@/lib/ui-preview"
+import { getResolvedAppToken } from "@/lib/public-env"
 
 /**
  * Permissões Spatie (lista `permissions` no perfil) + ponte legada `gerenciar-admin-api` (TIM gestor).
@@ -28,9 +29,7 @@ export function useGplacePermissions() {
   const bladeSidebarMode = legacyFullGplace || spatieNames.length > 0
 
   /** Equivalente a `session()->has('store')`: header `app` (loja) configurado. */
-  const hasStoreContext =
-    legacyFullGplace ||
-    (typeof process.env.NEXT_PUBLIC_APP_TOKEN === "string" && process.env.NEXT_PUBLIC_APP_TOKEN.trim().length > 0)
+  const hasStoreContext = legacyFullGplace || getResolvedAppToken().length > 0
 
   /** Equivalente a `session()->exists('tenant')` no Blade (contexto de titular/loja). */
   const hasTenantContext =

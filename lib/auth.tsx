@@ -4,6 +4,32 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { apiService, User, LoginRequest, RegisterRequest, ApiError } from '@/lib/api';
 import { usePersistedAuth } from './use-persisted-auth';
 
+const AUTH_USER_SNAPSHOT_KEY = 'auth_user_snapshot';
+
+function readUserSnapshot(): User | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(AUTH_USER_SNAPSHOT_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as User;
+  } catch {
+    return null;
+  }
+}
+
+function writeUserSnapshot(user: User | null) {
+  if (typeof window === 'undefined') return;
+  if (!user) {
+    localStorage.removeItem(AUTH_USER_SNAPSHOT_KEY);
+    return;
+  }
+  try {
+    localStorage.setItem(AUTH_USER_SNAPSHOT_KEY, JSON.stringify(user));
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
 // Interface para o contexto de autenticação
 interface AuthContextType {
   user: User | null;
@@ -63,11 +89,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setIsLoading(true);
         const token = apiService.getToken();
         if (!token) {
-          if (!cancelled) setUser(null);
+          if (!cancelled) {
+            setUser(null);
+            writeUserSnapshot(null);
+          }
           return;
         }
         const response = await apiService.getProfile();
-        if (!cancelled) setUser(response.data);
+        if (!cancelled) {
+          setUser(response.data);
+          writeUserSnapshot(response.data);
+        }
       } catch (e) {
         if (cancelled) return;
         const err = e as ApiError;
@@ -78,13 +110,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
             err.message
           );
         }
+        // Só invalidar sessão com 401 (token inválido/expirado). Outros erros não devem apagar o token.
         if (status === 401) {
           apiService.clearToken();
           setUser(null);
+          writeUserSnapshot(null);
           return;
         }
-        apiService.clearToken();
-        setUser(null);
+        const cached = readUserSnapshot();
+        if (cached) {
+          setUser(cached);
+          if (process.env.NODE_ENV === 'development') {
+            console.warn(
+              '[auth] Não foi possível atualizar o perfil; a usar dados em cache até à próxima sincronização.',
+              err.message
+            );
+          }
+        } else {
+          setUser(null);
+        }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -98,6 +142,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           void loadUser();
         } else {
           setUser(null);
+          writeUserSnapshot(null);
         }
       }
     };
@@ -122,8 +167,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       try {
         const profileResponse = await apiService.getProfile();
         setUser(profileResponse.data);
+        writeUserSnapshot(profileResponse.data);
       } catch {
-        setUser(response.data.user);
+        const fallback = response.data.user;
+        setUser(fallback);
+        writeUserSnapshot(fallback);
       }
     } catch (error) {
       const apiError = error as ApiError;
@@ -163,6 +211,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Ignorar erros de logout
     } finally {
       setUser(null);
+      writeUserSnapshot(null);
       setError(null);
     }
   };

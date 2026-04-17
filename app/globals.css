@@ -12,28 +12,26 @@
    * 2. Todas as outras cores são calculadas automaticamente
    * 
    * Exemplos:
-   * --primary-base: #0026d9; (Azul TIM atual)
+   * --primary-base: #2f3a8f; (Azul‑índigo / alinhado ao sidebar)
    * --primary-base: #E30613; (Vermelho TIM)
    * --primary-base: #00A651; (Verde TIM)
-   * --primary-base: #FFA500; (Laranja)
-   * --primary-base: #9C27B0; (Roxo)
    */
-  --primary-base: #0026d9;
+  --primary-base: #2f3a8f;
   
-  /* Cores derivadas automaticamente */
-  --primary-hover: #001a99;
-  --primary-light: #4d5ce8;
-  --primary-dark: #001166;
-  --primary-50: #f0f2ff;
-  --primary-100: #e0e5ff;
-  --primary-200: #c7d2fe;
-  --primary-300: #a5b4fc;
-  --primary-400: #818cf8;
-  --primary-500: #6366f1;
-  --primary-600: #4f46e5;
-  --primary-700: #4338ca;
-  --primary-800: #3730a3;
-  --primary-900: #312e81;
+  /* Cores derivadas (mesma família que --primary-base) */
+  --primary-hover: #262f73;
+  --primary-light: #5a66b8;
+  --primary-dark: #1e2659;
+  --primary-50: #f4f5fb;
+  --primary-100: #e8eaf6;
+  --primary-200: #d4d8ed;
+  --primary-300: #b5bce0;
+  --primary-400: #8b94cc;
+  --primary-500: #6b75b8;
+  --primary-600: #4f5599;
+  --primary-700: #3f4580;
+  --primary-800: #2f3a8f;
+  --primary-900: #181f4d;
   
   /* Cores do sistema baseadas na primária */
   --background: oklch(0.98 0.002 247);
@@ -73,12 +71,12 @@
 
 .dark {
   /* COR PRIMÁRIA - ALTERE APENAS ESTA COR */
-  --primary-base: #0026d9;
+  --primary-base: #2f3a8f;
   
-  /* Cores derivadas automaticamente */
-  --primary-hover: #001a99;
-  --primary-light: #4d5ce8;
-  --primary-dark: #001166;
+  /* Cores derivadas (mesma família) */
+  --primary-hover: #262f73;
+  --primary-light: #5a66b8;
+  --primary-dark: #1e2659;
   
   /* Cores do sistema baseadas na primária */
   --background: oklch(0.12 0.01 247);

@@ -1,7 +1,29 @@
 import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
-import { isAppTokenConfigured, PUBLIC_APP_TOKEN } from '@/lib/public-env';
+import { getResolvedAppToken } from '@/lib/public-env';
 
 let warnedMissingAppToken = false;
+let loggedDevAppTokenFallback = false;
+
+/**
+ * Rotas que ainda passam pelo middleware `app` (catálogo / ecommerce).
+ * Login, painel e dados após Passport usam `user_store` — não exigem este header.
+ */
+function pathLikelyRequiresAppHeader(url: string | undefined): boolean {
+  if (!url) return false;
+  const path = url.split('?')[0].replace(/^\/api\/v1/, '');
+  if (
+    /^\/auth\/(login|password\/)/.test(path) ||
+    /^\/auth\/(logout|profile)/.test(path) ||
+    path === '/auth/change-password' ||
+    /^\/(admin|dashboard|notifications|sales|establishments)\b/.test(path) ||
+    /^\/(get-person-by-nif|get-user-by-nif|states|cities|variation|inactivate-coupon|public|integration)\b/.test(path)
+  ) {
+    return false;
+  }
+  return /^\/(products|faqs|catalogs|leads|brands|sections|calc-freight|banners|parameters|contact|payment-methods|settings|public-key|pagseguro|home|coupons|validate-coupon|salesman|orders|addresses|auth\/users|auth\/user-lead)\b/.test(
+    path
+  );
+}
 
 // Configuração base da API
 const LOCAL_API_DEFAULT = 'http://localhost:8005/api/v1';
@@ -263,18 +285,33 @@ class ApiService {
     // Carregar token do localStorage
     this.token = this.getToken();
 
-    // Interceptor: token Passport + header `app` (middleware CheckAppHeader na API Laravel)
+    // Interceptor: Bearer Passport + header `app` opcional (catálogo/ecommerce; painel resolve loja no servidor).
     this.api.interceptors.request.use(
       (config) => {
-        const appToken = PUBLIC_APP_TOKEN;
+        const appToken = getResolvedAppToken();
         if (appToken) {
           config.headers.set('app', appToken);
-        } else if (typeof window !== 'undefined' && !warnedMissingAppToken) {
+          if (
+            process.env.NODE_ENV === 'development' &&
+            typeof window !== 'undefined' &&
+            !loggedDevAppTokenFallback &&
+            !(process.env.NEXT_PUBLIC_APP_TOKEN || '').trim()
+          ) {
+            loggedDevAppTokenFallback = true;
+            console.info(
+              '[Gplace] NEXT_PUBLIC_APP_TOKEN não definido — a usar token local de desenvolvimento no header `app` (' +
+                'gplace-local-frontend). Opcional no login/painel; necessário para catálogo público sem sessão.',
+            );
+          }
+        } else if (
+          typeof window !== 'undefined' &&
+          !warnedMissingAppToken &&
+          pathLikelyRequiresAppHeader(config.url)
+        ) {
           warnedMissingAppToken = true;
           const msg =
-            '[Gplace] NEXT_PUBLIC_APP_TOKEN ausente no build. A API responde 403 (middleware `app`). ' +
-            'No Vercel: Environment Variables → NEXT_PUBLIC_APP_TOKEN = valor de `stores.app_token` (php artisan store:issue-app-token --show). ' +
-            'Depois: Redeploy.';
+            '[Gplace] Sem header `app` (NEXT_PUBLIC_APP_TOKEN). Rotas de catálogo/ecommerce respondem 403. ' +
+            'Define NEXT_PUBLIC_APP_TOKEN = stores.app_token da loja.';
           if (process.env.NODE_ENV === 'development') {
             console.warn(msg);
           } else {
@@ -320,10 +357,16 @@ class ApiService {
         return response;
       },
       (error: AxiosError) => {
-        if (error.response?.status === 401) {
+        const status = error.response?.status;
+        if (status === 401) {
           // Token expirado ou inválido — limpa storage e notifica AuthProvider (evita estado React
           // "logado" com token apagado + reload agressivo que mascarava o problema).
           this.clearToken();
+        }
+        if (status === 403 && process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+          const data = error.response?.data as { message?: string } | undefined;
+          const url = error.config?.url ?? '';
+          console.error('[Gplace] API 403', url, data?.message ?? error.response?.data);
         }
         return Promise.reject(error);
       }
@@ -347,6 +390,7 @@ class ApiService {
     this.token = null;
     if (typeof window !== 'undefined') {
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user_snapshot');
       window.dispatchEvent(new CustomEvent('auth:session-invalid'));
     }
   }
@@ -1709,6 +1753,11 @@ class ApiService {
 
   async updateAdminTenant(id: number, payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
     const response = await this.api.put(`/admin/tenants/${id}`, payload);
+    return response.data;
+  }
+
+  async deleteAdminTenant(id: number): Promise<ApiResponse<unknown>> {
+    const response = await this.api.delete(`/admin/tenants/${id}`);
     return response.data;
   }
 

@@ -76,6 +76,15 @@ export const maskCNPJ = (value: string): string => {
 }
 
 /**
+ * CPF ou CNPJ: até 11 dígitos formata como CPF; a partir do 12.º, como CNPJ (máx. 14 dígitos).
+ */
+export const maskCpfCnpj = (value: string): string => {
+  const digits = value.replace(/\D/g, '').slice(0, 14)
+  if (digits.length <= 11) return maskCPF(digits)
+  return maskCNPJ(digits)
+}
+
+/**
  * Remove máscara de CNPJ, retornando apenas números
  */
 export const unmaskCNPJ = (value: string): string => {
