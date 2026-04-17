@@ -1352,25 +1352,26 @@ export default function AdminProdutosPage() {
               <div className="grid gap-2">
                 <Label>Marca (opcional)</Label>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                  <Select
-                    className="min-w-0 flex-1"
-                    value={form.brand_id.trim() === "" ? "__none__" : form.brand_id}
-                    onValueChange={(v) => setForm((f) => ({ ...f, brand_id: v === "__none__" ? "" : v }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={brands.length ? "— Nenhuma —" : "Sem marcas — pode criar uma"}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">— Nenhuma —</SelectItem>
-                      {brands.map((b) => (
-                        <SelectItem key={b.id} value={String(b.id)}>
-                          {b.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="min-w-0 flex-1">
+                    <Select
+                      value={form.brand_id.trim() === "" ? "__none__" : form.brand_id}
+                      onValueChange={(v) => setForm((f) => ({ ...f, brand_id: v === "__none__" ? "" : v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={brands.length ? "— Nenhuma —" : "Sem marcas — pode criar uma"}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Nenhuma —</SelectItem>
+                        {brands.map((b) => (
+                          <SelectItem key={b.id} value={String(b.id)}>
+                            {b.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <Button type="button" variant="secondary" size="sm" className="shrink-0" onClick={() => setBrandQuickOpen(true)}>
                     Nova marca
                   </Button>
@@ -1399,24 +1400,25 @@ export default function AdminProdutosPage() {
               <div className="grid gap-2 sm:col-span-1">
                 <Label>Unidade de medida</Label>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                  <Select
-                    className="min-w-0 flex-1"
-                    value={form.um_id || undefined}
-                    onValueChange={(v) => setForm((f) => ({ ...f, um_id: v }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={(meta?.measurement_units ?? []).length ? "Seleccione" : "Sem unidades de medida — crie uma"}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(meta?.measurement_units ?? []).map((u) => (
-                        <SelectItem key={u.id} value={String(u.id)}>
-                          {u.initials ? `${u.name} (${u.initials})` : u.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="min-w-0 flex-1">
+                    <Select
+                      value={form.um_id || undefined}
+                      onValueChange={(v) => setForm((f) => ({ ...f, um_id: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={(meta?.measurement_units ?? []).length ? "Seleccione" : "Sem unidades de medida — crie uma"}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(meta?.measurement_units ?? []).map((u) => (
+                          <SelectItem key={u.id} value={String(u.id)}>
+                            {u.initials ? `${u.name} (${u.initials})` : u.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <Button
                     type="button"
                     variant="secondary"

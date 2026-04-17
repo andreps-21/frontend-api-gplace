@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ShoppingCart, TrendingUp, Users, Target, Wifi, Smartphone, Headphones, Coins, Cake } from "lucide-react"
 import { DashboardHomeSkeleton } from "@/components/dashboard/dashboard-home-skeleton"
-import { apiService } from "@/lib/api"
+import { apiService, type DashboardOrdersYearlyPayload } from "@/lib/api"
+import { OrdersYearlyChart } from "@/components/dashboard/orders-yearly-chart"
 import { useAuth } from "@/lib/auth"
 import { isGestorLevelRole } from "@/lib/permissions-role"
 import { notifications } from "@/lib/notifications"
@@ -95,6 +96,7 @@ export default function DashboardPage() {
   const [recentSales, setRecentSales] = useState<RecentSale[]>([])
   const [establishments, setEstablishments] = useState<{ id: number; name: string }[]>([])
   const [aniversariantes, setAniversariantes] = useState<Aniversariante[]>([])
+  const [ordersYearly, setOrdersYearly] = useState<DashboardOrdersYearlyPayload | null>(null)
 
   const loadDashboard = useCallback(async () => {
     if (!user?.id) return
@@ -141,12 +143,18 @@ export default function DashboardPage() {
       faturamentoParams.seller_id = user.id
     }
 
+    const yearlyParams: { years_back: number; seller_id?: number } = { years_back: 2 }
+    if (user.role === "vendedor") {
+      yearlyParams.seller_id = user.id
+    }
+
     setLoading(true)
     try {
-      const [salesEnvelope, statsEnvelope, fatEnvelope] = await Promise.all([
+      const [salesEnvelope, statsEnvelope, fatEnvelope, yearlyEnvelope] = await Promise.all([
         apiService.getSales(salesParams),
         apiService.getDashboardStats(statsParams),
         apiService.getDashboardFaturamento(faturamentoParams),
+        apiService.getDashboardOrdersYearly(yearlyParams).catch(() => ({ message: "", data: null })),
       ])
 
       const paginator = salesEnvelope?.data as
@@ -233,6 +241,18 @@ export default function DashboardPage() {
           : []
       )
 
+      const yPayload = yearlyEnvelope?.data as DashboardOrdersYearlyPayload | null | undefined
+      if (
+        yPayload &&
+        Array.isArray(yPayload.anos) &&
+        yPayload.anos.length > 0 &&
+        Array.isArray(yPayload.meses)
+      ) {
+        setOrdersYearly(yPayload)
+      } else {
+        setOrdersYearly(null)
+      }
+
       try {
         const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null
         if (token && (isGestorLevelRole(user.role) || user.role === "gerente")) {
@@ -264,6 +284,7 @@ export default function DashboardPage() {
         setEstablishments([])
       }
     } catch {
+      setOrdersYearly(null)
       notifications.custom.error("Erro ao carregar dados do dashboard")
     } finally {
       setLoading(false)
@@ -413,6 +434,8 @@ export default function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      <OrdersYearlyChart payload={ordersYearly} />
 
       <Card className="border-violet-200/80 bg-gradient-to-br from-violet-50/90 to-background dark:border-violet-800/60 dark:from-violet-950/30">
         <CardHeader>

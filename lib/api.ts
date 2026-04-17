@@ -95,6 +95,18 @@ export interface ApiResponse<T = any> {
   data: T;
 }
 
+/** GET /dashboard/orders-yearly — mesmo formato usado no painel Goombo. */
+export interface DashboardYearlyMonthRow {
+  mes: number;
+  label: string;
+  totais: Record<string, number>;
+}
+
+export interface DashboardOrdersYearlyPayload {
+  anos: number[];
+  meses: DashboardYearlyMonthRow[];
+}
+
 export interface HeaderNotificationItem {
   key: string;
   type: 'profile' | 'birthday_self' | 'birthday_peer';
@@ -1469,6 +1481,19 @@ class ApiService {
   async deleteDocument(saleId: number, documentId: number): Promise<ApiResponse<any>> {
     try {
       const response = await this.api.delete(`/sales/${saleId}/documents/${documentId}`);
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /** Série mensal Jan–Dez por ano (pedidos com status ≠ 8). */
+  async getDashboardOrdersYearly(params?: {
+    years_back?: number;
+    seller_id?: number;
+  }): Promise<ApiResponse<DashboardOrdersYearlyPayload>> {
+    try {
+      const response = await this.api.get('/dashboard/orders-yearly', { params });
       return response.data;
     } catch (error) {
       throw this.handleError(error);

@@ -386,14 +386,6 @@ export function DashboardSidebar() {
             <>
               {bladeSidebarMode ? (
                 <>
-                  {!isCollapsed ? (
-                    <li className="list-none px-1 pb-2 pt-0">
-                      <div className="rounded-md bg-white/5 px-2 py-1.5 ring-1 ring-white/10">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Gplace</p>
-                        <p className="text-[10px] text-white/45">Menu alinhado ao Blade + API v1</p>
-                      </div>
-                    </li>
-                  ) : null}
                   <GplaceBladeSidebar isCollapsed={isCollapsed} />
                   {canAccessModule("gerenciar") ? (
                     <>
