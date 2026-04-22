@@ -1,6 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { apiService } from "@/lib/api"
 import { laravelInnerData } from "@/lib/laravel-data"
 import { useGplacePermissions } from "@/lib/use-gplace-permissions"
@@ -78,6 +79,40 @@ function isLowStock(row: Record<string, unknown>): boolean {
   return min != null && !Number.isNaN(min) && q <= min
 }
 
+const BRAND_SUGGEST_LIMIT = 25
+
+type ProductCommercialNameSuggestRow = {
+  id: number
+  commercial_name: string
+  reference: string
+  sku: string
+}
+
+/** Filtro por nome (substring), alinhado ao padrão do Monitor Operacional (Apollo). */
+function filterBrandsForPicker(
+  brands: Array<{ id: number; name: string }>,
+  query: string,
+  limit = BRAND_SUGGEST_LIMIT,
+): Array<{ id: number; name: string }> {
+  const t = query.trim().toLowerCase()
+  if (!t) return brands.slice(0, limit)
+  return brands.filter((b) => b.name.toLowerCase().includes(t)).slice(0, limit)
+}
+
+/** Nome exacto (ignorando maiúsculas) ou uma única correspondência com ≥2 caracteres → id; senão vazio. */
+function resolveBrandIdFromTypedQuery(
+  query: string,
+  brands: Array<{ id: number; name: string }>,
+): string {
+  const t = query.trim().toLowerCase()
+  if (!t) return ""
+  const exact = brands.find((b) => b.name.trim().toLowerCase() === t)
+  if (exact) return String(exact.id)
+  const matches = brands.filter((b) => b.name.toLowerCase().includes(t))
+  if (matches.length === 1 && t.length >= 2) return String(matches[0].id)
+  return ""
+}
+
 type Meta = {
   sections: Array<{ id: number; name: string; parent_id?: number | null }>
   measurement_units: Array<{ id: number; name: string; initials?: string }>
@@ -124,47 +159,18 @@ function formatPtBrMoney(n: number): string {
   }).format(n)
 }
 
-/** Parte inteira só com dígitos → «1.234.567» (pt-BR). */
-function addThousandDots(intDigits: string): string {
-  const clean = intDigits.replace(/\D/g, "")
-  if (clean === "") return ""
-  const trimmed = clean.replace(/^0+(?=\d)/, "")
-  const base = trimmed === "" ? "0" : trimmed
-  return base.replace(/\B(?=(\d{3})+(?!\d))/g, ".")
-}
+/** Máximo de dígitos interpretados como centavos (evita overflow em `Number`). */
+const MONEY_CENTS_DIGIT_CAP = 14
 
 /**
- * Máscara monetária pt-BR durante o preenchimento: milhares com «.», decimais após «,» (até 2 casas).
- * Aceita colar valores já formatados; ignora caracteres inválidos.
+ * Máscara «caixa»: só dígitos, cada novo dígito entra à direita como centavos.
+ * Ex.: 1 → 0,01 · 11 → 0,11 · 111 → 1,11. Colar «1.234,56» → dígitos 123456 → 1.234,56.
  */
-function formatMoneyWhileTyping(raw: string, allowEmpty: boolean): string {
-  if (allowEmpty && raw.trim() === "") return ""
-  const s = raw.replace(/[^\d.,]/g, "")
-  if (s === "") return allowEmpty ? "" : "0"
-
-  const commaIdx = s.indexOf(",")
-  if (commaIdx === -1) {
-    const digits = s.replace(/\D/g, "")
-    if (digits === "") return allowEmpty ? "" : "0"
-    if (digits === "0") return "0"
-    const intOnly = digits.replace(/^0+(?=\d)/, "") || "0"
-    return addThousandDots(intOnly)
-  }
-
-  const intDigits = s.slice(0, commaIdx).replace(/\D/g, "")
-  const decDigits = s
-    .slice(commaIdx + 1)
-    .replace(/\D/g, "")
-    .slice(0, 2)
-  const intNorm = intDigits === "" ? "0" : intDigits.replace(/^0+(?=\d)/, "") || "0"
-  const intFmt = addThousandDots(intNorm)
-  return intFmt + "," + decDigits
-}
-
-function blurMoneyField(raw: string, allowEmpty: boolean): string {
-  const t = raw.trim()
-  if (allowEmpty && t === "") return ""
-  return formatPtBrMoney(numMoney(t))
+function formatMoneyCentsMask(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, MONEY_CENTS_DIGIT_CAP)
+  const cents = digits === "" ? 0 : Number.parseInt(digits, 10)
+  if (!Number.isFinite(cents) || cents < 0) return formatPtBrMoney(0)
+  return formatPtBrMoney(cents / 100)
 }
 
 function intQty(v: string): number {
@@ -192,6 +198,7 @@ function ProdutosListSkeleton({ rowCount = 8 }: { rowCount?: number }) {
                 <TableHead className="min-w-[100px]">SKU</TableHead>
                 <TableHead className="min-w-[120px]">Marca</TableHead>
                 <TableHead className="min-w-[120px]">Secção</TableHead>
+                <TableHead className="min-w-[100px] text-right">Preço venda</TableHead>
                 <TableHead className="min-w-[80px] text-right">Estoque</TableHead>
                 <TableHead className="min-w-[64px] text-right">Mín.</TableHead>
                 <TableHead className="min-w-[72px]">Activo</TableHead>
@@ -215,6 +222,9 @@ function ProdutosListSkeleton({ rowCount = 8 }: { rowCount?: number }) {
                   </TableCell>
                   <TableCell className="py-3">
                     <Skeleton className="h-4 w-24" />
+                  </TableCell>
+                  <TableCell className="py-3 text-right">
+                    <Skeleton className="ml-auto h-4 w-16" />
                   </TableCell>
                   <TableCell className="py-3 text-right">
                     <Skeleton className="ml-auto h-4 w-10" />
@@ -305,6 +315,19 @@ export default function AdminProdutosPage() {
   const [lotSaving, setLotSaving] = useState(false)
 
   const [brandQuickOpen, setBrandQuickOpen] = useState(false)
+  /** Campo de marca com busca (padrão Monitor Operacional Apollo: input + lista em portal). */
+  const [brandSearch, setBrandSearch] = useState("")
+  const [showBrandSuggestions, setShowBrandSuggestions] = useState(false)
+  const brandFieldWrapRef = useRef<HTMLDivElement>(null)
+  const [brandMenuRect, setBrandMenuRect] = useState({ top: 0, left: 0, width: 0 })
+  /** Nome comercial / descrição: sugestões de produtos já cadastrados (API + portal). */
+  const [showCommercialNameSuggestions, setShowCommercialNameSuggestions] = useState(false)
+  const commercialNameFieldWrapRef = useRef<HTMLDivElement>(null)
+  const [commercialNameMenuRect, setCommercialNameMenuRect] = useState({ top: 0, left: 0, width: 0 })
+  const [commercialNameSuggestions, setCommercialNameSuggestions] = useState<ProductCommercialNameSuggestRow[]>([])
+  const [commercialNameSuggestLoading, setCommercialNameSuggestLoading] = useState(false)
+  const commercialSuggestDebounceRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const commercialSuggestReqId = useRef(0)
   const [umQuickOpen, setUmQuickOpen] = useState(false)
   const [newBrandName, setNewBrandName] = useState("")
   const [newBrandPublic, setNewBrandPublic] = useState(true)
@@ -321,9 +344,9 @@ export default function AdminProdutosPage() {
     description: "",
     um_id: "",
     tag: "",
-    price: "",
-    promotion_price: "",
-    invoice_price: "",
+    price: formatPtBrMoney(0),
+    promotion_price: formatPtBrMoney(0),
+    invoice_price: formatPtBrMoney(0),
     discount: "",
     payment_condition: "",
     weight: "",
@@ -364,6 +387,130 @@ export default function AdminProdutosPage() {
     const t = window.setTimeout(() => setEffectiveSearch(searchInput.trim()), 400)
     return () => window.clearTimeout(t)
   }, [searchInput])
+
+  const filteredBrandsForMenu = useMemo(
+    () => filterBrandsForPicker(brands, brandSearch),
+    [brands, brandSearch],
+  )
+
+  const updateBrandMenuPosition = useCallback(() => {
+    const el = brandFieldWrapRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    setBrandMenuRect({
+      top: r.bottom + 4,
+      left: r.left,
+      width: Math.max(r.width, 220),
+    })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!showBrandSuggestions || !dialogOpen || wizardStep !== 3) return
+    updateBrandMenuPosition()
+  }, [
+    showBrandSuggestions,
+    dialogOpen,
+    wizardStep,
+    brandSearch,
+    filteredBrandsForMenu.length,
+    updateBrandMenuPosition,
+  ])
+
+  useEffect(() => {
+    if (!showBrandSuggestions || !dialogOpen || wizardStep !== 3) return
+    const onScrollOrResize = () => updateBrandMenuPosition()
+    window.addEventListener("scroll", onScrollOrResize, true)
+    window.addEventListener("resize", onScrollOrResize)
+    return () => {
+      window.removeEventListener("scroll", onScrollOrResize, true)
+      window.removeEventListener("resize", onScrollOrResize)
+    }
+  }, [showBrandSuggestions, dialogOpen, wizardStep, updateBrandMenuPosition])
+
+  const updateCommercialNameMenuPosition = useCallback(() => {
+    const el = commercialNameFieldWrapRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    setCommercialNameMenuRect({
+      top: r.bottom + 4,
+      left: r.left,
+      width: Math.max(r.width, 220),
+    })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!showCommercialNameSuggestions || !dialogOpen || wizardStep !== 1) return
+    updateCommercialNameMenuPosition()
+  }, [
+    showCommercialNameSuggestions,
+    dialogOpen,
+    wizardStep,
+    form.commercial_name,
+    commercialNameSuggestions.length,
+    commercialNameSuggestLoading,
+    updateCommercialNameMenuPosition,
+  ])
+
+  useEffect(() => {
+    if (!showCommercialNameSuggestions || !dialogOpen || wizardStep !== 1) return
+    const onScrollOrResize = () => updateCommercialNameMenuPosition()
+    window.addEventListener("scroll", onScrollOrResize, true)
+    window.addEventListener("resize", onScrollOrResize)
+    return () => {
+      window.removeEventListener("scroll", onScrollOrResize, true)
+      window.removeEventListener("resize", onScrollOrResize)
+    }
+  }, [showCommercialNameSuggestions, dialogOpen, wizardStep, updateCommercialNameMenuPosition])
+
+  useEffect(() => {
+    if (!dialogOpen || wizardStep !== 1) {
+      setCommercialNameSuggestions([])
+      setCommercialNameSuggestLoading(false)
+      return
+    }
+    const q = form.commercial_name.trim()
+    if (q.length < 2) {
+      setCommercialNameSuggestions([])
+      setCommercialNameSuggestLoading(false)
+      return
+    }
+    if (commercialSuggestDebounceRef.current) window.clearTimeout(commercialSuggestDebounceRef.current)
+    commercialSuggestDebounceRef.current = window.setTimeout(() => {
+      commercialSuggestDebounceRef.current = null
+      const reqId = ++commercialSuggestReqId.current
+      setCommercialNameSuggestLoading(true)
+      void (async () => {
+        try {
+          const raw = await apiService.getAdminProducts({
+            search: q,
+            per_page: 15,
+            page: 1,
+          })
+          if (commercialSuggestReqId.current !== reqId) return
+          const inner = laravelInnerData<Paginator<Record<string, unknown>>>(raw)
+          const rows = (inner?.data ?? [])
+            .map((r) => ({
+              id: Number(r.id),
+              commercial_name: String(r.commercial_name ?? ""),
+              reference: String(r.reference ?? ""),
+              sku: String(r.sku ?? ""),
+            }))
+            .filter((r) => Number.isFinite(r.id) && (editingId == null || r.id !== editingId))
+          setCommercialNameSuggestions(rows)
+        } catch {
+          if (commercialSuggestReqId.current === reqId) setCommercialNameSuggestions([])
+        } finally {
+          if (commercialSuggestReqId.current === reqId) setCommercialNameSuggestLoading(false)
+        }
+      })()
+    }, 320)
+    return () => {
+      if (commercialSuggestDebounceRef.current) {
+        window.clearTimeout(commercialSuggestDebounceRef.current)
+        commercialSuggestDebounceRef.current = null
+      }
+    }
+  }, [form.commercial_name, dialogOpen, wizardStep, editingId])
 
   useEffect(() => {
     setPage(1)
@@ -458,6 +605,8 @@ export default function AdminProdutosPage() {
       const created = laravelInnerData<{ id: number; name: string }>(raw)
       setBrands((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, "pt")))
       setForm((f) => ({ ...f, brand_id: String(created.id) }))
+      setBrandSearch(created.name)
+      setShowBrandSuggestions(false)
       setBrandQuickOpen(false)
       setNewBrandName("")
       toast.success("Marca criada.")
@@ -511,6 +660,10 @@ export default function AdminProdutosPage() {
   const openCreate = async () => {
     setProductDialogMode("create")
     setEditingId(null)
+    setBrandSearch("")
+    setShowBrandSuggestions(false)
+    setShowCommercialNameSuggestions(false)
+    setCommercialNameSuggestions([])
     setPaymentSel([])
     setExtraSections([])
     setForm({
@@ -522,7 +675,7 @@ export default function AdminProdutosPage() {
       tag: "",
       price: formatPtBrMoney(0),
       promotion_price: formatPtBrMoney(0),
-      invoice_price: "",
+      invoice_price: formatPtBrMoney(0),
       discount: "",
       payment_condition: "",
       weight: "",
@@ -574,8 +727,10 @@ export default function AdminProdutosPage() {
     const id = Number(row.id)
     setProductDialogMode("edit")
     setEditingId(id)
+    setShowCommercialNameSuggestions(false)
+    setCommercialNameSuggestions([])
     try {
-      await loadAux()
+      const { brands: brandsLoaded } = await loadAux()
       try {
         const wRaw = await apiService.getAdminWarehouses()
         const wInner = laravelInnerData<Array<{ id: number; name: string; code?: string }>>(wRaw)
@@ -600,10 +755,9 @@ export default function AdminProdutosPage() {
         tag: String(d.tag ?? ""),
         price: formatPtBrMoney(Number(d.price ?? 0)),
         promotion_price: formatPtBrMoney(Number(d.promotion_price ?? 0)),
-        invoice_price:
-          d.invoice_price != null && d.invoice_price !== ""
-            ? formatPtBrMoney(Number(d.invoice_price))
-            : "",
+        invoice_price: formatPtBrMoney(
+          d.invoice_price != null && d.invoice_price !== "" ? Number(d.invoice_price) : 0,
+        ),
         discount: d.discount != null ? String(d.discount) : "",
         payment_condition: String(d.payment_condition ?? ""),
         weight: d.weight != null ? String(d.weight) : "",
@@ -629,7 +783,9 @@ export default function AdminProdutosPage() {
         is_grid: String(d.is_grid ?? "0"),
         video: String(d.video ?? ""),
         origin: String(d.origin ?? "0"),
-        ncm: String(d.ncm ?? ""),
+        ncm: String(d.ncm ?? "")
+          .replace(/\D/g, "")
+          .slice(0, 8),
         cest: String(d.cest ?? ""),
         cfop_default: String(d.cfop_default ?? ""),
         csosn_default: String(d.csosn_default ?? ""),
@@ -639,6 +795,12 @@ export default function AdminProdutosPage() {
         min_stock: d.min_stock != null ? String(Math.max(0, Math.floor(Number(d.min_stock)))) : "",
         stock_change_note: "",
       })
+      {
+        const bid = d.brand_id != null && d.brand_id !== "" ? String(d.brand_id) : ""
+        const nm = bid ? brandsLoaded.find((x) => String(x.id) === bid)?.name ?? "" : ""
+        setBrandSearch(nm)
+      }
+      setShowBrandSuggestions(false)
       setLotQty("1")
       setLotDoc("")
       setLotWarehouseId("")
@@ -730,7 +892,7 @@ export default function AdminProdutosPage() {
         tag: form.tag.trim() || null,
         price: numMoney(form.price),
         promotion_price: numMoney(form.promotion_price),
-        invoice_price: form.invoice_price.trim() !== "" ? numMoney(form.invoice_price) : null,
+        invoice_price: numMoney(form.invoice_price) === 0 ? null : numMoney(form.invoice_price),
         discount: form.discount.trim() ? num(form.discount) : null,
         payment_condition: form.payment_condition.trim() || null,
         weight: form.weight.trim() ? num(form.weight) : null,
@@ -829,6 +991,114 @@ export default function AdminProdutosPage() {
     return <AccessDenied />
   }
 
+  const brandSuggestionsPortal =
+    showBrandSuggestions &&
+    dialogOpen &&
+    wizardStep === 3 &&
+    typeof document !== "undefined" &&
+    createPortal(
+      <div
+        role="listbox"
+        aria-label="Sugestões de marca"
+        className="fixed z-[200] overflow-y-auto overscroll-contain rounded-md border border-border bg-popover text-popover-foreground shadow-xl"
+        style={{
+          top: brandMenuRect.top,
+          left: brandMenuRect.left,
+          width: brandMenuRect.width,
+          maxHeight: "min(50vh, 320px)",
+        }}
+      >
+        <button
+          type="button"
+          className="flex h-auto min-h-0 w-full items-start justify-start break-words px-3 py-2.5 text-left text-sm text-popover-foreground hover:bg-muted whitespace-normal"
+          onMouseDown={(e) => {
+            e.preventDefault()
+            setForm((f) => ({ ...f, brand_id: "" }))
+            setBrandSearch("")
+            setShowBrandSuggestions(false)
+          }}
+        >
+          — Nenhuma —
+        </button>
+        {filteredBrandsForMenu.map((b) => (
+          <button
+            key={b.id}
+            type="button"
+            className="flex h-auto min-h-0 w-full items-start justify-start break-words border-t border-border/60 px-3 py-2.5 text-left text-sm text-popover-foreground hover:bg-muted whitespace-normal"
+            onMouseDown={(e) => {
+              e.preventDefault()
+              setForm((f) => ({ ...f, brand_id: String(b.id) }))
+              setBrandSearch(b.name)
+              setShowBrandSuggestions(false)
+            }}
+          >
+            {b.name}
+          </button>
+        ))}
+        {brandSearch.trim() !== "" && filteredBrandsForMenu.length === 0 ? (
+          <div className="border-t border-border/60 px-3 py-2.5 text-sm text-muted-foreground">
+            Nenhuma marca encontrada. Use «Nova marca» para criar.
+          </div>
+        ) : null}
+      </div>,
+      document.body,
+    )
+
+  const commercialNameQueryOk = form.commercial_name.trim().length >= 2
+  const commercialNameSuggestionsPortal =
+    showCommercialNameSuggestions &&
+    commercialNameQueryOk &&
+    dialogOpen &&
+    wizardStep === 1 &&
+    typeof document !== "undefined" &&
+    createPortal(
+      <div
+        role="listbox"
+        aria-label="Produtos com nome semelhante"
+        className="fixed z-[200] overflow-y-auto overscroll-contain rounded-md border border-border bg-popover text-popover-foreground shadow-xl"
+        style={{
+          top: commercialNameMenuRect.top,
+          left: commercialNameMenuRect.left,
+          width: commercialNameMenuRect.width,
+          maxHeight: "min(50vh, 320px)",
+        }}
+      >
+        {commercialNameSuggestLoading ? (
+          <div className="flex items-center gap-2 px-3 py-2.5 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+            A procurar…
+          </div>
+        ) : null}
+        {!commercialNameSuggestLoading && commercialNameSuggestions.length === 0 ? (
+          <div className="px-3 py-2.5 text-sm text-muted-foreground">Nenhum produto encontrado com esse nome.</div>
+        ) : null}
+        {commercialNameSuggestions.map((p, idx) => {
+          const sub = [p.reference.trim() ? `Ref. ${p.reference}` : "", p.sku.trim() ? `SKU ${p.sku}` : ""]
+            .filter(Boolean)
+            .join(" · ")
+          return (
+            <button
+              key={p.id}
+              type="button"
+              className={cn(
+                "flex h-auto min-h-0 w-full flex-col items-start justify-start gap-0.5 break-words px-3 py-2.5 text-left hover:bg-muted",
+                idx > 0 || commercialNameSuggestLoading ? "border-t border-border/60" : "",
+              )}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                setForm((f) => ({ ...f, commercial_name: p.commercial_name }))
+                setShowCommercialNameSuggestions(false)
+              }}
+            >
+              <span className="text-sm font-medium text-popover-foreground">{p.commercial_name}</span>
+              {sub ? <span className="text-xs text-muted-foreground">{sub}</span> : null}
+            </button>
+          )
+        })}
+      </div>,
+      document.body,
+    )
+
   const rows = paginator?.data ?? []
   const listTotal = paginator?.total ?? 0
   const totalPages = Math.max(1, paginator?.last_page ?? 1)
@@ -865,6 +1135,7 @@ export default function AdminProdutosPage() {
                   <TableHead className="min-w-[100px]">SKU</TableHead>
                   <TableHead className="min-w-[120px]">Marca</TableHead>
                   <TableHead className="min-w-[120px]">Secção</TableHead>
+                  <TableHead className="min-w-[104px] text-right">Preço venda</TableHead>
                   <TableHead className="min-w-[88px] text-right">Estoque</TableHead>
                   <TableHead className="min-w-[64px] text-right">Mín.</TableHead>
                   <TableHead className="min-w-[72px]">Activo</TableHead>
@@ -883,6 +1154,9 @@ export default function AdminProdutosPage() {
                       <TableCell className="py-2 text-sm text-muted-foreground">{String(row.sku ?? "")}</TableCell>
                       <TableCell className="py-2 text-sm">{String(row.brand ?? "")}</TableCell>
                       <TableCell className="py-2 text-sm text-muted-foreground">{String(row.section ?? "")}</TableCell>
+                      <TableCell className="py-2 text-right text-sm font-medium tabular-nums text-foreground">
+                        {formatPtBrMoney(Number(row.price ?? 0))}
+                      </TableCell>
                       <TableCell className="py-2 text-right tabular-nums">
                         <span className="inline-flex items-center justify-end gap-2">
                           {row.quantity != null ? String(Math.floor(Number(row.quantity))) : "—"}
@@ -961,6 +1235,10 @@ export default function AdminProdutosPage() {
                     <dd className="m-0 text-muted-foreground">{String(row.brand ?? "—")}</dd>
                     <dt className="text-xs text-muted-foreground">Secção</dt>
                     <dd className="m-0 text-muted-foreground">{String(row.section ?? "—")}</dd>
+                    <dt className="text-xs text-muted-foreground">Preço venda</dt>
+                    <dd className="m-0 font-medium tabular-nums text-foreground">
+                      {formatPtBrMoney(Number(row.price ?? 0))}
+                    </dd>
                     <dt className="text-xs text-muted-foreground">Estoque</dt>
                     <dd className="m-0 tabular-nums">
                       <span className="inline-flex items-center gap-2">
@@ -1128,6 +1406,11 @@ export default function AdminProdutosPage() {
             if (!open) {
               setWizardStep(1)
               setProductDialogMode("create")
+              setShowBrandSuggestions(false)
+              setBrandSearch("")
+              setShowCommercialNameSuggestions(false)
+              setCommercialNameSuggestions([])
+              setCommercialNameSuggestLoading(false)
             }
           }}
         >
@@ -1208,7 +1491,26 @@ export default function AdminProdutosPage() {
             </div>
             <div className="grid gap-2">
               <Label>{productDialogMode === "create" ? "Descrição do Produto/Serviço" : "Nome comercial"}</Label>
-              <Input value={form.commercial_name} onChange={(e) => setForm((f) => ({ ...f, commercial_name: e.target.value }))} />
+              <div ref={commercialNameFieldWrapRef} className="min-w-0">
+                <Input
+                  value={form.commercial_name}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setForm((f) => ({ ...f, commercial_name: v }))
+                    setShowCommercialNameSuggestions(v.trim().length >= 2)
+                  }}
+                  onFocus={() => {
+                    setShowCommercialNameSuggestions(form.commercial_name.trim().length >= 2)
+                  }}
+                  onBlur={() => {
+                    window.setTimeout(() => setShowCommercialNameSuggestions(false), 180)
+                  }}
+                  autoComplete="off"
+                  placeholder="Comece a escrever para ver produtos já cadastrados…"
+                  className="w-full"
+                />
+                {commercialNameSuggestionsPortal}
+              </div>
             </div>
             <div className="grid gap-2 max-w-xs">
               <div className="grid gap-2">
@@ -1275,22 +1577,37 @@ export default function AdminProdutosPage() {
                             <Input
                               inputMode="numeric"
                               placeholder="Ex.: 12345678"
-                              maxLength={14}
+                              maxLength={8}
                               value={form.ncm}
-                              onChange={(e) => setForm((f) => ({ ...f, ncm: e.target.value }))}
+                              onChange={(e) => {
+                                const digits = e.target.value.replace(/\D/g, "").slice(0, 8)
+                                setForm((f) => ({ ...f, ncm: digits }))
+                              }}
+                              onBlur={(e) => {
+                                const d = e.currentTarget.value.replace(/\D/g, "")
+                                if (d.length > 0 && d.length < 8) {
+                                  toast.warning(
+                                    `NCM com ${d.length} dígito(s). O código completo tem 8 dígitos — pode guardar assim mesmo; confirme com a equipa fiscal.`,
+                                  )
+                                }
+                              }}
                             />
-                            <p className="text-xs text-muted-foreground">8 dígitos (aceita digitação com ou sem máscara).</p>
+                            <p className="text-xs text-muted-foreground">
+                              Até 8 dígitos (só números). Ao sair do campo, aviso se tiver menos de 8; o guardar continua permitido.
+                            </p>
                           </div>
                           <div className="grid gap-2">
                             <Label>CEST</Label>
                             <Input
                               inputMode="numeric"
-                              placeholder="7 dígitos"
-                              maxLength={10}
+                              placeholder="Até 20 dígitos"
+                              maxLength={20}
                               value={form.cest}
                               onChange={(e) => setForm((f) => ({ ...f, cest: e.target.value }))}
                             />
-                            <p className="text-xs text-muted-foreground">Opcional; substituição tributária / anexo XXVII IPI-ICMS.</p>
+                            <p className="text-xs text-muted-foreground">
+                              Opcional; só números, até 20 dígitos (substituição tributária / anexo XXVII IPI-ICMS).
+                            </p>
                           </div>
                         </div>
                         <div className="grid gap-2 sm:grid-cols-3">
@@ -1352,25 +1669,28 @@ export default function AdminProdutosPage() {
               <div className="grid gap-2">
                 <Label>Marca (opcional)</Label>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                  <div className="min-w-0 flex-1">
-                    <Select
-                      value={form.brand_id.trim() === "" ? "__none__" : form.brand_id}
-                      onValueChange={(v) => setForm((f) => ({ ...f, brand_id: v === "__none__" ? "" : v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue
-                          placeholder={brands.length ? "— Nenhuma —" : "Sem marcas — pode criar uma"}
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">— Nenhuma —</SelectItem>
-                        {brands.map((b) => (
-                          <SelectItem key={b.id} value={String(b.id)}>
-                            {b.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div ref={brandFieldWrapRef} className="min-w-0 flex-1">
+                    <Input
+                      placeholder={
+                        brands.length ? "Nome da marca…" : "Sem marcas — use «Nova marca»"
+                      }
+                      value={brandSearch}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setBrandSearch(v)
+                        setShowBrandSuggestions(true)
+                        const id = resolveBrandIdFromTypedQuery(v, brands)
+                        setForm((f) => ({ ...f, brand_id: id }))
+                      }}
+                      onFocus={() => setShowBrandSuggestions(true)}
+                      onBlur={() => {
+                        window.setTimeout(() => setShowBrandSuggestions(false), 180)
+                      }}
+                      autoComplete="off"
+                      disabled={!brands.length}
+                      className="w-full"
+                    />
+                    {brandSuggestionsPortal}
                   </div>
                   <Button type="button" variant="secondary" size="sm" className="shrink-0" onClick={() => setBrandQuickOpen(true)}>
                     Nova marca
@@ -1481,27 +1801,25 @@ export default function AdminProdutosPage() {
                 <div className="grid gap-2">
                   <Label>Valor na nota</Label>
                   <Input
-                    inputMode="decimal"
+                    inputMode="numeric"
                     className="tabular-nums"
                     value={form.invoice_price}
                     onChange={(e) =>
-                      setForm((f) => ({ ...f, invoice_price: formatMoneyWhileTyping(e.target.value, true) }))
+                      setForm((f) => ({ ...f, invoice_price: formatMoneyCentsMask(e.target.value) }))
                     }
-                    onBlur={() =>
-                      setForm((f) => ({ ...f, invoice_price: blurMoneyField(f.invoice_price, true) }))
-                    }
-                    placeholder="Opcional — ex.: 0,00"
+                    onBlur={() => setForm((f) => ({ ...f, invoice_price: formatMoneyCentsMask(f.invoice_price) }))}
+                    placeholder="0,00"
                   />
                   <p className="text-xs text-muted-foreground">Referência do valor constante na nota fiscal (ex.: compra).</p>
                 </div>
                 <div className="grid gap-2">
                   <Label>Valor para venda</Label>
                   <Input
-                    inputMode="decimal"
+                    inputMode="numeric"
                     className="tabular-nums"
                     value={form.price}
-                    onChange={(e) => setForm((f) => ({ ...f, price: formatMoneyWhileTyping(e.target.value, false) }))}
-                    onBlur={() => setForm((f) => ({ ...f, price: blurMoneyField(f.price, false) }))}
+                    onChange={(e) => setForm((f) => ({ ...f, price: formatMoneyCentsMask(e.target.value) }))}
+                    onBlur={() => setForm((f) => ({ ...f, price: formatMoneyCentsMask(f.price) }))}
                     placeholder="0,00"
                   />
                   <p className="text-xs text-muted-foreground">Preço praticado na loja / catálogo.</p>
@@ -1509,13 +1827,13 @@ export default function AdminProdutosPage() {
                 <div className="grid gap-2">
                   <Label>Valor promocional</Label>
                   <Input
-                    inputMode="decimal"
+                    inputMode="numeric"
                     className="tabular-nums"
                     value={form.promotion_price}
                     onChange={(e) =>
-                      setForm((f) => ({ ...f, promotion_price: formatMoneyWhileTyping(e.target.value, false) }))
+                      setForm((f) => ({ ...f, promotion_price: formatMoneyCentsMask(e.target.value) }))
                     }
-                    onBlur={() => setForm((f) => ({ ...f, promotion_price: blurMoneyField(f.promotion_price, false) }))}
+                    onBlur={() => setForm((f) => ({ ...f, promotion_price: formatMoneyCentsMask(f.promotion_price) }))}
                     placeholder="0,00"
                   />
                   <p className="text-xs text-muted-foreground">Preço em campanha ou promoção.</p>
@@ -1729,7 +2047,7 @@ export default function AdminProdutosPage() {
                           <div>
                             <dt className="text-xs text-muted-foreground">Preços (nota / venda / promoção)</dt>
                             <dd className="font-medium tabular-nums">
-                              {form.invoice_price.trim() !== "" ? form.invoice_price : "—"} / {form.price} / {form.promotion_price}
+                              {form.invoice_price} / {form.price} / {form.promotion_price}
                             </dd>
                           </div>
                           <div>

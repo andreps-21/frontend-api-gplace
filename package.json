@@ -3,8 +3,8 @@
     "version": "0.1.0",
     "private": true,
     "scripts": {
-        "dev": "next dev",
-        "dev:local": "NEXT_PUBLIC_API_URL=http://localhost:8005/api/v1 next dev",
+        "dev": "next dev -p 3005",
+        "dev:local": "NEXT_PUBLIC_API_URL=http://localhost:8005/api/v1 next dev -p 3005",
         "dev:cloud": "NEXT_PUBLIC_API_URL=https://api-gplace.gooding.solutions/api/v1 next dev",
         "build": "node scripts/update-version.js && next build",
         "start": "next start",
