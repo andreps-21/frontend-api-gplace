@@ -47,6 +47,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Eye,
   FileText,
   Layers,
   Loader2,
@@ -202,7 +203,7 @@ function ProdutosListSkeleton({ rowCount = 8 }: { rowCount?: number }) {
                 <TableHead className="min-w-[80px] text-right">Estoque</TableHead>
                 <TableHead className="min-w-[64px] text-right">Mín.</TableHead>
                 <TableHead className="min-w-[72px]">Activo</TableHead>
-                <TableHead className="min-w-[100px] text-right">Acções</TableHead>
+                <TableHead className="min-w-[128px] text-right">Acções</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -237,6 +238,7 @@ function ProdutosListSkeleton({ rowCount = 8 }: { rowCount?: number }) {
                   </TableCell>
                   <TableCell className="py-3 text-right">
                     <div className="flex justify-end gap-1">
+                      <Skeleton className="h-7 w-7 rounded-md" />
                       <Skeleton className="h-7 w-7 rounded-md" />
                       <Skeleton className="h-7 w-7 rounded-md" />
                     </div>
@@ -299,7 +301,7 @@ export default function AdminProdutosPage() {
   const [deleting, setDeleting] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   /** Garante rótulos correctos no sheet antes de qualquer await (ex.: «Descrição» em novo produto). */
-  const [productDialogMode, setProductDialogMode] = useState<"create" | "edit">("create")
+  const [productDialogMode, setProductDialogMode] = useState<"create" | "edit" | "view">("create")
   const [saving, setSaving] = useState(false)
   const [meta, setMeta] = useState<Meta | null>(null)
   const [brands, setBrands] = useState<Array<{ id: number; name: string }>>([])
@@ -724,9 +726,9 @@ export default function AdminProdutosPage() {
     setDialogOpen(true)
   }
 
-  const openEdit = async (row: Record<string, unknown>) => {
+  const openEdit = async (row: Record<string, unknown>, mode: "edit" | "view" = "edit") => {
     const id = Number(row.id)
-    setProductDialogMode("edit")
+    setProductDialogMode(mode)
     setEditingId(id)
     setShowCommercialNameSuggestions(false)
     setCommercialNameSuggestions([])
@@ -859,6 +861,7 @@ export default function AdminProdutosPage() {
   }
 
   const save = async () => {
+    if (productDialogMode === "view") return
     const primary = form.section_id.trim() === "" ? null : Number(form.section_id)
     const sectionIds =
       primary != null && !Number.isNaN(primary) ? Array.from(new Set([primary, ...extraSections])) : [...extraSections]
@@ -992,7 +995,10 @@ export default function AdminProdutosPage() {
     return <AccessDenied />
   }
 
+  const sheetReadOnly = productDialogMode === "view"
+
   const brandSuggestionsPortal =
+    !sheetReadOnly &&
     showBrandSuggestions &&
     dialogOpen &&
     wizardStep === 3 &&
@@ -1047,6 +1053,7 @@ export default function AdminProdutosPage() {
 
   const commercialNameQueryOk = form.commercial_name.trim().length >= 2
   const commercialNameSuggestionsPortal =
+    !sheetReadOnly &&
     showCommercialNameSuggestions &&
     commercialNameQueryOk &&
     dialogOpen &&
@@ -1140,7 +1147,7 @@ export default function AdminProdutosPage() {
                   <TableHead className="min-w-[88px] text-right">Estoque</TableHead>
                   <TableHead className="min-w-[64px] text-right">Mín.</TableHead>
                   <TableHead className="min-w-[72px]">Activo</TableHead>
-                  <TableHead className="min-w-[100px] text-right">Acções</TableHead>
+                  <TableHead className="min-w-[128px] text-right">Acções</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1178,6 +1185,17 @@ export default function AdminProdutosPage() {
                       </TableCell>
                       <TableCell className="py-2 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7 hover:bg-sky-50 hover:text-sky-800"
+                            onClick={() => void openEdit(row, "view")}
+                            title="Visualizar"
+                            aria-label="Visualizar produto"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
                           <Button
                             type="button"
                             variant="outline"
@@ -1252,11 +1270,20 @@ export default function AdminProdutosPage() {
                       </span>
                     </dd>
                   </dl>
-                  <div className="flex gap-2 border-t pt-2">
+                  <div className="flex flex-wrap gap-2 border-t pt-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1 hover:bg-yellow-50 hover:text-yellow-800"
+                      className="min-w-0 flex-1 basis-[100px] hover:bg-sky-50 hover:text-sky-800"
+                      onClick={() => void openEdit(row, "view")}
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      Ver
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="min-w-0 flex-1 basis-[100px] hover:bg-yellow-50 hover:text-yellow-800"
                       onClick={() => void openEdit(row)}
                     >
                       <Pencil className="mr-2 h-4 w-4" />
@@ -1418,9 +1445,17 @@ export default function AdminProdutosPage() {
           <SheetContent className="flex h-full max-h-[100dvh] flex-col p-0 !max-w-3xl">
             <div className="flex h-full min-h-0 flex-col">
               <SheetHeader className="space-y-1 border-b px-6 pb-4 pt-6 text-left">
-                <SheetTitle>{editingId ? `Editar produto #${editingId}` : "Novo produto"}</SheetTitle>
+                <SheetTitle>
+                  {productDialogMode === "view" && editingId
+                    ? `Ver produto #${editingId}`
+                    : editingId
+                      ? `Editar produto #${editingId}`
+                      : "Novo produto"}
+                </SheetTitle>
                 <SheetDescription>
-                  {PRODUCT_WIZARD_STEPS[wizardStep - 1]?.sub} — Etapa {wizardStep} de {PRODUCT_WIZARD_STEPS.length}
+                  {productDialogMode === "view"
+                    ? `Apenas leitura. Navegue pelas etapas para consultar os dados. ${PRODUCT_WIZARD_STEPS[wizardStep - 1]?.sub} — Etapa ${wizardStep} de ${PRODUCT_WIZARD_STEPS.length}`
+                    : `${PRODUCT_WIZARD_STEPS[wizardStep - 1]?.sub} — Etapa ${wizardStep} de ${PRODUCT_WIZARD_STEPS.length}`}
                 </SheetDescription>
               </SheetHeader>
 
@@ -1467,14 +1502,22 @@ export default function AdminProdutosPage() {
                 </div>
               </div>
 
-              <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto px-6 py-4">
+              <fieldset
+                disabled={sheetReadOnly}
+                className="min-h-0 flex-1 min-w-0 border-0 p-0 disabled:opacity-100"
+              >
+                <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto px-6 py-4">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">{PRODUCT_WIZARD_STEPS[wizardStep - 1]?.title}</CardTitle>
                     <CardDescription>
                       {wizardStep === 5
-                        ? "Revise o resumo e complete textos e opções finais antes de guardar."
-                        : "Navegue livremente: toque nas etapas acima, em «Voltar» / «Próximo» ou complete os campos quando quiser."}
+                        ? sheetReadOnly
+                          ? "Resumo dos dados do produto."
+                          : "Revise o resumo e complete textos e opções finais antes de guardar."
+                        : sheetReadOnly
+                          ? "Consulte as informações; use as etapas em cima ou «Voltar» / «Próximo»."
+                          : "Navegue livremente: toque nas etapas acima, em «Voltar» / «Próximo» ou complete os campos quando quiser."}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -2173,10 +2216,11 @@ export default function AdminProdutosPage() {
                     ) : null}
                   </CardContent>
                 </Card>
-              </div>
+                </div>
+              </fieldset>
               <SheetFooter className="shrink-0 flex-col gap-3 border-t bg-background px-6 py-3 sm:flex-row sm:items-center sm:justify-between sm:space-x-2">
                 <Button type="button" variant="ghost" size="sm" className="w-full sm:w-auto" onClick={() => setDialogOpen(false)}>
-                  Cancelar
+                  {sheetReadOnly ? "Fechar" : "Cancelar"}
                 </Button>
                 <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:justify-end">
                   {wizardStep > 1 ? (
@@ -2201,11 +2245,11 @@ export default function AdminProdutosPage() {
                       Próximo
                       <ArrowRight className="ml-1 h-4 w-4" />
                     </Button>
-                  ) : (
+                  ) : !sheetReadOnly ? (
                     <Button type="button" size="sm" className="w-full sm:w-auto" onClick={() => void save()} disabled={saving}>
                       {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? "Guardar" : "Criar"}
                     </Button>
-                  )}
+                  ) : null}
                 </div>
               </SheetFooter>
             </div>
