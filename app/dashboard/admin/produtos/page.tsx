@@ -326,7 +326,8 @@ export default function AdminProdutosPage() {
   const [commercialNameMenuRect, setCommercialNameMenuRect] = useState({ top: 0, left: 0, width: 0 })
   const [commercialNameSuggestions, setCommercialNameSuggestions] = useState<ProductCommercialNameSuggestRow[]>([])
   const [commercialNameSuggestLoading, setCommercialNameSuggestLoading] = useState(false)
-  const commercialSuggestDebounceRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  /** `window.setTimeout` devolve `number` no DOM; evita conflito com `NodeJS.Timeout` no build Next/Vercel. */
+  const commercialSuggestDebounceRef = useRef<number | null>(null)
   const commercialSuggestReqId = useRef(0)
   const [umQuickOpen, setUmQuickOpen] = useState(false)
   const [newBrandName, setNewBrandName] = useState("")
