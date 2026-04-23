@@ -17,7 +17,13 @@ const SheetClose = Drawer.Close
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof Drawer.Content>,
   React.ComponentPropsWithoutRef<typeof Drawer.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, onPointerDownOutside, onInteractOutside, onFocusOutside, ...props }, ref) => {
+  /** Listas de sugestão (portais `createPortal` em `body`) estão fora de `Drawer.Content` — sem isto, o Vaul trata o clique como "outside" e o input perde o foco antes de aplicar a selecção. */
+  const doNotCloseWhenSuggestPopover = (e: { target: EventTarget | null; preventDefault: () => void }) => {
+    const t = e.target
+    if (t instanceof Element && t.closest?.("[data-gplace-floating-suggest]")) e.preventDefault()
+  }
+  return (
   <Drawer.Portal>
     <Drawer.Overlay className="fixed inset-0 z-50 bg-black/50" />
     <Drawer.Content
@@ -27,6 +33,18 @@ const SheetContent = React.forwardRef<
         "max-w-lg",
         className
       )}
+      onPointerDownOutside={(e) => {
+        doNotCloseWhenSuggestPopover(e)
+        onPointerDownOutside?.(e)
+      }}
+      onInteractOutside={(e) => {
+        doNotCloseWhenSuggestPopover(e)
+        onInteractOutside?.(e)
+      }}
+      onFocusOutside={(e) => {
+        doNotCloseWhenSuggestPopover(e)
+        onFocusOutside?.(e)
+      }}
       {...props}
     >
       {children}
@@ -36,7 +54,8 @@ const SheetContent = React.forwardRef<
       </Drawer.Close>
     </Drawer.Content>
   </Drawer.Portal>
-))
+  )
+})
 SheetContent.displayName = "SheetContent"
 
 const SheetHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (

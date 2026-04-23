@@ -1783,6 +1783,18 @@ class ApiService {
     return response.data;
   }
 
+  /**
+   * GET `/admin/products/fiscal-suggest` — pares NCM+CEST ou CEST já usados na loja (autocomplete).
+   * @param field ncm: devolve combinações distintas; cest: valores CEST com NCM de referência.
+   */
+  async getAdminProductFiscalSuggest(params: { q: string; field?: "ncm" | "cest" }): Promise<ApiResponse<unknown>> {
+    const q = String(params.q ?? "").replace(/\D/g, "");
+    const response = await this.api.get("/admin/products/fiscal-suggest", {
+      params: { q, field: params.field ?? "ncm" },
+    });
+    return response.data;
+  }
+
   async getAdminQuickSaleNextCode(): Promise<ApiResponse<{ code: string }>> {
     const response = await this.api.get('/admin/quick-sale/next-code');
     return response.data;
@@ -1916,8 +1928,8 @@ class ApiService {
     return response.data;
   }
 
-  /** POST `/admin/customers/quick` — CPF/CNPJ, nome, telefone (venda de balcão). */
-  async createAdminCustomerQuick(payload: { nif: string; name: string; phone: string; city_id?: number }): Promise<ApiResponse<unknown>> {
+  /** POST `/admin/customers/quick` — nome obrigatório; CPF e telefone opcionais (venda de balcão). */
+  async createAdminCustomerQuick(payload: { nif?: string | null; name: string; phone?: string | null; city_id?: number }): Promise<ApiResponse<unknown>> {
     const response = await this.api.post('/admin/customers/quick', payload);
     return response.data;
   }

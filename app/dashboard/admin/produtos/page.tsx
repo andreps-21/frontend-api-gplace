@@ -90,6 +90,18 @@ type ProductCommercialNameSuggestRow = {
   sku: string
 }
 
+/** Pares fiscais já usados noutros produtos da loja (API `fiscal-suggest`, field=ncm). */
+type ProductFiscalNcmSuggestRow = {
+  ncm: string
+  cest: string | null
+  use_count: number
+}
+
+type ProductFiscalCestSuggestRow = {
+  cest: string
+  ncm: string | null
+}
+
 /** Filtro por nome (substring), alinhado ao padrão do Monitor Operacional (Apollo). */
 function filterBrandsForPicker(
   brands: Array<{ id: number; name: string }>,
@@ -302,6 +314,26 @@ export default function AdminProdutosPage() {
   /** `window.setTimeout` devolve `number` no DOM; evita conflito com `NodeJS.Timeout` no build Next/Vercel. */
   const commercialSuggestDebounceRef = useRef<number | null>(null)
   const commercialSuggestReqId = useRef(0)
+  /** NCM/CEST: sugestões a partir de códigos já usados no cadastro de produtos da loja. */
+  const ncmFiscalFieldWrapRef = useRef<HTMLDivElement>(null)
+  const [showNcmFiscalSuggest, setShowNcmFiscalSuggest] = useState(false)
+  const [ncmFiscalMenuRect, setNcmFiscalMenuRect] = useState({ top: 0, left: 0, width: 0 })
+  const [ncmFiscalSuggestions, setNcmFiscalSuggestions] = useState<ProductFiscalNcmSuggestRow[]>([])
+  const [ncmFiscalSuggestLoading, setNcmFiscalSuggestLoading] = useState(false)
+  const [ncmFiscalActiveIndex, setNcmFiscalActiveIndex] = useState(0)
+  const ncmFiscalSuggestDebounceRef = useRef<number | null>(null)
+  const ncmFiscalSuggestReqId = useRef(0)
+  /** Evita toast "NCM com N dígitos" ao escolher da lista (blur corre antes do React repintar o valor). */
+  const ncmFiscalPickingFromListRef = useRef(false)
+  /** Sempre igual a `form.ncm` — actualizado em `useEffect` (não use `form` aqui: `form` declara-se abaixo). */
+  const ncmFiscalValueForBlurRef = useRef("")
+  const cestFiscalFieldWrapRef = useRef<HTMLDivElement>(null)
+  const [showCestFiscalSuggest, setShowCestFiscalSuggest] = useState(false)
+  const [cestFiscalMenuRect, setCestFiscalMenuRect] = useState({ top: 0, left: 0, width: 0 })
+  const [cestFiscalSuggestions, setCestFiscalSuggestions] = useState<ProductFiscalCestSuggestRow[]>([])
+  const [cestFiscalSuggestLoading, setCestFiscalSuggestLoading] = useState(false)
+  const cestFiscalSuggestDebounceRef = useRef<number | null>(null)
+  const cestFiscalSuggestReqId = useRef(0)
   const [umQuickOpen, setUmQuickOpen] = useState(false)
   const [newBrandName, setNewBrandName] = useState("")
   const [newBrandPublic, setNewBrandPublic] = useState(true)
@@ -485,6 +517,207 @@ export default function AdminProdutosPage() {
       }
     }
   }, [form.commercial_name, dialogOpen, wizardStep, editingId])
+
+  const updateNcmFiscalMenuPosition = useCallback(() => {
+    const el = ncmFiscalFieldWrapRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    setNcmFiscalMenuRect({
+      top: r.bottom + 4,
+      left: r.left,
+      width: Math.max(r.width, 220),
+    })
+  }, [])
+
+  const updateCestFiscalMenuPosition = useCallback(() => {
+    const el = cestFiscalFieldWrapRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    setCestFiscalMenuRect({
+      top: r.bottom + 4,
+      left: r.left,
+      width: Math.max(r.width, 220),
+    })
+  }, [])
+
+  const applyNcmFiscalRow = useCallback((r: ProductFiscalNcmSuggestRow) => {
+    ncmFiscalPickingFromListRef.current = true
+    setForm((f) => ({
+      ...f,
+      ncm: r.ncm,
+      cest: r.cest != null && r.cest !== "" ? r.cest : f.cest.replace(/\D/g, "").slice(0, 20),
+    }))
+    setShowNcmFiscalSuggest(false)
+  }, [])
+
+  useEffect(() => {
+    setNcmFiscalActiveIndex(0)
+  }, [form.ncm])
+
+  useEffect(() => {
+    ncmFiscalValueForBlurRef.current = form.ncm
+  }, [form.ncm])
+
+  useLayoutEffect(() => {
+    if (!showNcmFiscalSuggest || !dialogOpen || wizardStep !== 2) return
+    if (ncmFiscalSuggestions.length === 0) return
+    const el = document.getElementById(`ncm-fiscal-sug-${ncmFiscalActiveIndex}`)
+    el?.scrollIntoView({ block: "nearest" })
+  }, [ncmFiscalActiveIndex, ncmFiscalSuggestions, showNcmFiscalSuggest, dialogOpen, wizardStep])
+
+  useLayoutEffect(() => {
+    if (!showNcmFiscalSuggest || !dialogOpen || wizardStep !== 2) return
+    updateNcmFiscalMenuPosition()
+  }, [
+    showNcmFiscalSuggest,
+    dialogOpen,
+    wizardStep,
+    form.ncm,
+    ncmFiscalSuggestions.length,
+    ncmFiscalSuggestLoading,
+    updateNcmFiscalMenuPosition,
+  ])
+
+  useEffect(() => {
+    if (!showNcmFiscalSuggest || !dialogOpen || wizardStep !== 2) return
+    const onScrollOrResize = () => updateNcmFiscalMenuPosition()
+    window.addEventListener("scroll", onScrollOrResize, true)
+    window.addEventListener("resize", onScrollOrResize)
+    return () => {
+      window.removeEventListener("scroll", onScrollOrResize, true)
+      window.removeEventListener("resize", onScrollOrResize)
+    }
+  }, [showNcmFiscalSuggest, dialogOpen, wizardStep, updateNcmFiscalMenuPosition])
+
+  useLayoutEffect(() => {
+    if (!showCestFiscalSuggest || !dialogOpen || wizardStep !== 2) return
+    updateCestFiscalMenuPosition()
+  }, [
+    showCestFiscalSuggest,
+    dialogOpen,
+    wizardStep,
+    form.cest,
+    cestFiscalSuggestions.length,
+    cestFiscalSuggestLoading,
+    updateCestFiscalMenuPosition,
+  ])
+
+  useEffect(() => {
+    if (!showCestFiscalSuggest || !dialogOpen || wizardStep !== 2) return
+    const onScrollOrResize = () => updateCestFiscalMenuPosition()
+    window.addEventListener("scroll", onScrollOrResize, true)
+    window.addEventListener("resize", onScrollOrResize)
+    return () => {
+      window.removeEventListener("scroll", onScrollOrResize, true)
+      window.removeEventListener("resize", onScrollOrResize)
+    }
+  }, [showCestFiscalSuggest, dialogOpen, wizardStep, updateCestFiscalMenuPosition])
+
+  useEffect(() => {
+    if (!dialogOpen || wizardStep !== 2 || productDialogMode === "view") {
+      setNcmFiscalSuggestions([])
+      setNcmFiscalSuggestLoading(false)
+      return
+    }
+    const q = form.ncm.replace(/\D/g, "")
+    if (q.length < 1) {
+      setNcmFiscalSuggestions([])
+      setNcmFiscalSuggestLoading(false)
+      return
+    }
+    if (ncmFiscalSuggestDebounceRef.current) window.clearTimeout(ncmFiscalSuggestDebounceRef.current)
+    ncmFiscalSuggestDebounceRef.current = window.setTimeout(() => {
+      ncmFiscalSuggestDebounceRef.current = null
+      const reqId = ++ncmFiscalSuggestReqId.current
+      setNcmFiscalSuggestLoading(true)
+      void (async () => {
+        try {
+          const raw = await apiService.getAdminProductFiscalSuggest({ q, field: "ncm" })
+          if (ncmFiscalSuggestReqId.current !== reqId) return
+          const data = laravelInnerData<unknown>(raw)
+          const arr = Array.isArray(data) ? data : []
+          const rows: ProductFiscalNcmSuggestRow[] = arr
+            .map((r) => {
+              const o = r as Record<string, unknown>
+              const ncm = String(o.ncm ?? "").replace(/\D/g, "").slice(0, 8)
+              if (ncm.length < 1) return null
+              const cestRaw = o.cest
+              const cest =
+                cestRaw === null || cestRaw === undefined || cestRaw === ""
+                  ? null
+                  : String(cestRaw).replace(/\D/g, "").slice(0, 20) || null
+              return {
+                ncm,
+                cest,
+                use_count: Math.max(0, Number(o.use_count ?? 0)),
+              }
+            })
+            .filter((x): x is ProductFiscalNcmSuggestRow => x != null)
+          setNcmFiscalSuggestions(rows)
+        } catch {
+          if (ncmFiscalSuggestReqId.current === reqId) setNcmFiscalSuggestions([])
+        } finally {
+          if (ncmFiscalSuggestReqId.current === reqId) setNcmFiscalSuggestLoading(false)
+        }
+      })()
+    }, 280)
+    return () => {
+      if (ncmFiscalSuggestDebounceRef.current) {
+        window.clearTimeout(ncmFiscalSuggestDebounceRef.current)
+        ncmFiscalSuggestDebounceRef.current = null
+      }
+    }
+  }, [form.ncm, dialogOpen, wizardStep, productDialogMode])
+
+  useEffect(() => {
+    if (!dialogOpen || wizardStep !== 2 || productDialogMode === "view") {
+      setCestFiscalSuggestions([])
+      setCestFiscalSuggestLoading(false)
+      return
+    }
+    const q = form.cest.replace(/\D/g, "")
+    if (q.length < 2) {
+      setCestFiscalSuggestions([])
+      setCestFiscalSuggestLoading(false)
+      return
+    }
+    if (cestFiscalSuggestDebounceRef.current) window.clearTimeout(cestFiscalSuggestDebounceRef.current)
+    cestFiscalSuggestDebounceRef.current = window.setTimeout(() => {
+      cestFiscalSuggestDebounceRef.current = null
+      const reqId = ++cestFiscalSuggestReqId.current
+      setCestFiscalSuggestLoading(true)
+      void (async () => {
+        try {
+          const raw = await apiService.getAdminProductFiscalSuggest({ q, field: "cest" })
+          if (cestFiscalSuggestReqId.current !== reqId) return
+          const data = laravelInnerData<unknown>(raw)
+          const arr = Array.isArray(data) ? data : []
+          const rows: ProductFiscalCestSuggestRow[] = arr
+            .map((r) => {
+              const o = r as Record<string, unknown>
+              const cest = String(o.cest ?? "").replace(/\D/g, "").slice(0, 20)
+              if (cest.length < 2) return null
+              const nRaw = o.ncm
+              const ncm =
+                nRaw === null || nRaw === undefined || nRaw === "" ? null : String(nRaw).replace(/\D/g, "").slice(0, 8) || null
+              return { cest, ncm: ncm && ncm.length > 0 ? ncm : null }
+            })
+            .filter((x): x is ProductFiscalCestSuggestRow => x != null)
+          setCestFiscalSuggestions(rows)
+        } catch {
+          if (cestFiscalSuggestReqId.current === reqId) setCestFiscalSuggestions([])
+        } finally {
+          if (cestFiscalSuggestReqId.current === reqId) setCestFiscalSuggestLoading(false)
+        }
+      })()
+    }, 280)
+    return () => {
+      if (cestFiscalSuggestDebounceRef.current) {
+        window.clearTimeout(cestFiscalSuggestDebounceRef.current)
+        cestFiscalSuggestDebounceRef.current = null
+      }
+    }
+  }, [form.cest, dialogOpen, wizardStep, productDialogMode])
 
   useEffect(() => {
     setPage(1)
@@ -976,9 +1209,10 @@ export default function AdminProdutosPage() {
     typeof document !== "undefined" &&
     createPortal(
       <div
+        data-gplace-floating-suggest
         role="listbox"
         aria-label="Sugestões de marca"
-        className="fixed z-[200] overflow-y-auto overscroll-contain rounded-md border border-border bg-popover text-popover-foreground shadow-xl"
+        className="pointer-events-auto fixed z-[200] overflow-y-auto overscroll-contain rounded-md border border-border bg-popover text-popover-foreground shadow-xl"
         style={{
           top: brandMenuRect.top,
           left: brandMenuRect.left,
@@ -1032,9 +1266,10 @@ export default function AdminProdutosPage() {
     typeof document !== "undefined" &&
     createPortal(
       <div
+        data-gplace-floating-suggest
         role="listbox"
         aria-label="Produtos com nome semelhante"
-        className="fixed z-[200] overflow-y-auto overscroll-contain rounded-md border border-border bg-popover text-popover-foreground shadow-xl"
+        className="pointer-events-auto fixed z-[200] overflow-y-auto overscroll-contain rounded-md border border-border bg-popover text-popover-foreground shadow-xl"
         style={{
           top: commercialNameMenuRect.top,
           left: commercialNameMenuRect.left,
@@ -1074,6 +1309,128 @@ export default function AdminProdutosPage() {
             </button>
           )
         })}
+      </div>,
+      document.body,
+    )
+
+  const ncmFiscalQueryOk = form.ncm.replace(/\D/g, "").length >= 1
+  const cestFiscalQueryOk = form.cest.replace(/\D/g, "").length >= 2
+
+  const ncmFiscalSuggestionsPortal =
+    !sheetReadOnly &&
+    showNcmFiscalSuggest &&
+    ncmFiscalQueryOk &&
+    dialogOpen &&
+    wizardStep === 2 &&
+    typeof document !== "undefined" &&
+    createPortal(
+      <div
+        data-gplace-floating-suggest
+        role="listbox"
+        aria-label="NCM já usado em produtos desta loja"
+        className="pointer-events-auto fixed z-[200] overflow-y-auto overscroll-contain rounded-md border border-border bg-popover text-popover-foreground shadow-xl"
+        style={{
+          top: ncmFiscalMenuRect.top,
+          left: ncmFiscalMenuRect.left,
+          width: ncmFiscalMenuRect.width,
+          maxHeight: "min(50vh, 320px)",
+        }}
+      >
+        {ncmFiscalSuggestLoading ? (
+          <div className="flex items-center gap-2 px-3 py-2.5 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+            A procurar NCM…
+          </div>
+        ) : null}
+        {!ncmFiscalSuggestLoading && ncmFiscalSuggestions.length === 0 ? (
+          <div className="px-3 py-2.5 text-sm text-muted-foreground">Nenhum NCM em uso com este prefixo.</div>
+        ) : null}
+        {ncmFiscalSuggestions.map((r, idx) => {
+          const sub = r.cest
+            ? `CEST ${r.cest} · em uso em ${r.use_count} produto(s)`
+            : `Sem CEST · em uso em ${r.use_count} produto(s)`
+          const isActive = idx === ncmFiscalActiveIndex
+          return (
+            <button
+              key={`${r.ncm}-${r.cest ?? "—"}-${idx}`}
+              id={`ncm-fiscal-sug-${idx}`}
+              type="button"
+              role="option"
+              aria-selected={isActive}
+              onMouseEnter={() => setNcmFiscalActiveIndex(idx)}
+              className={cn(
+                "flex h-auto min-h-0 w-full flex-col items-start justify-start gap-0.5 break-words px-3 py-2.5 text-left hover:bg-muted",
+                isActive && "bg-muted",
+                idx > 0 || ncmFiscalSuggestLoading ? "border-t border-border/60" : "",
+              )}
+              onPointerDown={(e) => {
+                if (e.button !== 0) return
+                e.preventDefault()
+                applyNcmFiscalRow(r)
+              }}
+            >
+              <span className="text-sm font-medium text-popover-foreground tabular-nums">NCM {r.ncm}</span>
+              <span className="text-xs text-muted-foreground">{sub}</span>
+            </button>
+          )
+        })}
+      </div>,
+      document.body,
+    )
+
+  const cestFiscalSuggestionsPortal =
+    !sheetReadOnly &&
+    showCestFiscalSuggest &&
+    cestFiscalQueryOk &&
+    dialogOpen &&
+    wizardStep === 2 &&
+    typeof document !== "undefined" &&
+    createPortal(
+      <div
+        data-gplace-floating-suggest
+        role="listbox"
+        aria-label="CEST já usado em produtos desta loja"
+        className="pointer-events-auto fixed z-[200] overflow-y-auto overscroll-contain rounded-md border border-border bg-popover text-popover-foreground shadow-xl"
+        style={{
+          top: cestFiscalMenuRect.top,
+          left: cestFiscalMenuRect.left,
+          width: cestFiscalMenuRect.width,
+          maxHeight: "min(50vh, 280px)",
+        }}
+      >
+        {cestFiscalSuggestLoading ? (
+          <div className="flex items-center gap-2 px-3 py-2.5 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+            A procurar CEST…
+          </div>
+        ) : null}
+        {!cestFiscalSuggestLoading && cestFiscalSuggestions.length === 0 ? (
+          <div className="px-3 py-2.5 text-sm text-muted-foreground">Nenhum CEST em uso com este prefixo.</div>
+        ) : null}
+        {cestFiscalSuggestions.map((r, idx) => (
+          <button
+            key={`${r.cest}-${idx}`}
+            type="button"
+            className={cn(
+              "flex h-auto min-h-0 w-full flex-col items-start justify-start gap-0.5 break-words px-3 py-2.5 text-left hover:bg-muted",
+              idx > 0 || cestFiscalSuggestLoading ? "border-t border-border/60" : "",
+            )}
+            onMouseDown={(e) => {
+              e.preventDefault()
+              setForm((f) => {
+                const next: typeof f = { ...f, cest: r.cest }
+                if ((!f.ncm || f.ncm.replace(/\D/g, "").length === 0) && r.ncm) {
+                  next.ncm = r.ncm
+                }
+                return next
+              })
+              setShowCestFiscalSuggest(false)
+            }}
+          >
+            <span className="text-sm font-medium text-popover-foreground tabular-nums">CEST {r.cest}</span>
+            {r.ncm ? <span className="text-xs text-muted-foreground">NCM de referência: {r.ncm}</span> : null}
+          </button>
+        ))}
       </div>,
       document.body,
     )
@@ -1410,12 +1767,19 @@ export default function AdminProdutosPage() {
               setShowCommercialNameSuggestions(false)
               setCommercialNameSuggestions([])
               setCommercialNameSuggestLoading(false)
+              setShowNcmFiscalSuggest(false)
+              setNcmFiscalActiveIndex(0)
+              setNcmFiscalSuggestions([])
+              setNcmFiscalSuggestLoading(false)
+              setShowCestFiscalSuggest(false)
+              setCestFiscalSuggestions([])
+              setCestFiscalSuggestLoading(false)
             }
           }}
         >
-          <SheetContent className="flex h-full max-h-[100dvh] flex-col p-0 !max-w-3xl">
-            <div className="flex h-full min-h-0 flex-col">
-              <SheetHeader className="space-y-1 border-b px-6 pb-4 pt-6 text-left">
+          <SheetContent className="flex h-full max-h-[100dvh] flex-col overflow-hidden p-0 !max-w-3xl">
+            <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+              <SheetHeader className="shrink-0 space-y-1 border-b px-6 pb-4 pt-6 text-left">
                 <SheetTitle>
                   {productDialogMode === "view" && editingId
                     ? `Ver produto #${editingId}`
@@ -1430,7 +1794,7 @@ export default function AdminProdutosPage() {
                 </SheetDescription>
               </SheetHeader>
 
-              <div className="relative border-b bg-muted/30 px-4 py-4 sm:px-6">
+              <div className="relative shrink-0 border-b bg-muted/30 px-4 py-4 sm:px-6">
                 <div className="absolute left-4 right-4 top-[2.1rem] z-0 hidden h-0.5 bg-border sm:left-8 sm:right-8 sm:block" />
                 <div className="relative z-10 grid grid-cols-5 gap-1 sm:gap-2">
                   {PRODUCT_WIZARD_STEPS.map((s, idx) => {
@@ -1475,9 +1839,9 @@ export default function AdminProdutosPage() {
 
               <fieldset
                 disabled={sheetReadOnly}
-                className="min-h-0 flex-1 min-w-0 border-0 p-0 disabled:opacity-100"
+                className="flex min-h-0 min-w-0 flex-1 flex-col border-0 p-0 disabled:opacity-100"
               >
-                <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto px-6 py-4">
+                <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-6 py-4 pb-28 [scroll-padding-bottom:7rem] [scrollbar-gutter:stable]">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">{PRODUCT_WIZARD_STEPS[wizardStep - 1]?.title}</CardTitle>
@@ -1589,39 +1953,105 @@ export default function AdminProdutosPage() {
                         <div className="grid gap-2 sm:grid-cols-2">
                           <div className="grid gap-2">
                             <Label>NCM</Label>
-                            <Input
-                              inputMode="numeric"
-                              placeholder="Ex.: 12345678"
-                              maxLength={8}
-                              value={form.ncm}
-                              onChange={(e) => {
-                                const digits = e.target.value.replace(/\D/g, "").slice(0, 8)
-                                setForm((f) => ({ ...f, ncm: digits }))
-                              }}
-                              onBlur={(e) => {
-                                const d = e.currentTarget.value.replace(/\D/g, "")
-                                if (d.length > 0 && d.length < 8) {
-                                  toast.warning(
-                                    `NCM com ${d.length} dígito(s). O código completo tem 8 dígitos — pode guardar assim mesmo; confirme com a equipa fiscal.`,
-                                  )
-                                }
-                              }}
-                            />
+                            <div ref={ncmFiscalFieldWrapRef} className="min-w-0">
+                              <Input
+                                inputMode="numeric"
+                                placeholder="Ex.: 12345678"
+                                maxLength={8}
+                                value={form.ncm}
+                                onChange={(e) => {
+                                  const digits = e.target.value.replace(/\D/g, "").slice(0, 8)
+                                  setForm((f) => ({ ...f, ncm: digits }))
+                                  setShowNcmFiscalSuggest(digits.length >= 1)
+                                }}
+                                onFocus={() => {
+                                  if (form.ncm.replace(/\D/g, "").length >= 1) setShowNcmFiscalSuggest(true)
+                                }}
+                                onKeyDown={(e) => {
+                                  const d = form.ncm.replace(/\D/g, "")
+                                  const listo =
+                                    showNcmFiscalSuggest &&
+                                    d.length >= 1 &&
+                                    !ncmFiscalSuggestLoading &&
+                                    ncmFiscalSuggestions.length > 0 &&
+                                    dialogOpen &&
+                                    wizardStep === 2
+                                  if (e.key === "ArrowDown" && listo) {
+                                    e.preventDefault()
+                                    setNcmFiscalActiveIndex((i) => (i + 1) % ncmFiscalSuggestions.length)
+                                    return
+                                  }
+                                  if (e.key === "ArrowUp" && listo) {
+                                    e.preventDefault()
+                                    setNcmFiscalActiveIndex(
+                                      (i) =>
+                                        (i - 1 + ncmFiscalSuggestions.length) % ncmFiscalSuggestions.length,
+                                    )
+                                    return
+                                  }
+                                  if (e.key === "Enter" && listo) {
+                                    e.preventDefault()
+                                    const r = ncmFiscalSuggestions[ncmFiscalActiveIndex]
+                                    if (r) applyNcmFiscalRow(r)
+                                    return
+                                  }
+                                  if (e.key === "Escape" && showNcmFiscalSuggest) {
+                                    e.preventDefault()
+                                    setShowNcmFiscalSuggest(false)
+                                  }
+                                }}
+                                onBlur={() => {
+                                  window.setTimeout(() => setShowNcmFiscalSuggest(false), 180)
+                                  window.setTimeout(() => {
+                                    if (ncmFiscalPickingFromListRef.current) {
+                                      ncmFiscalPickingFromListRef.current = false
+                                      return
+                                    }
+                                    const d = ncmFiscalValueForBlurRef.current.replace(/\D/g, "")
+                                    if (d.length > 0 && d.length < 8) {
+                                      toast.warning(
+                                        `NCM com ${d.length} dígito(s). O código completo tem 8 dígitos — pode guardar assim mesmo; confirme com a equipa fiscal.`,
+                                      )
+                                    }
+                                  }, 0)
+                                }}
+                                autoComplete="off"
+                                className="w-full"
+                              />
+                              {ncmFiscalSuggestionsPortal}
+                            </div>
                             <p className="text-xs text-muted-foreground">
-                              Até 8 dígitos (só números). Ao sair do campo, aviso se tiver menos de 8; o guardar continua permitido.
+                              Até 8 dígitos. Enquanto digita, sugerimos NCM já usados nesta loja; clique, ou use
+                              setas ↑↓ e Enter (Esc fecha). Ao escolher, o CEST preenche se houver no cadastro.
                             </p>
                           </div>
                           <div className="grid gap-2">
                             <Label>CEST</Label>
-                            <Input
-                              inputMode="numeric"
-                              placeholder="Até 20 dígitos"
-                              maxLength={20}
-                              value={form.cest}
-                              onChange={(e) => setForm((f) => ({ ...f, cest: e.target.value }))}
-                            />
+                            <div ref={cestFiscalFieldWrapRef} className="min-w-0">
+                              <Input
+                                inputMode="numeric"
+                                placeholder="Até 20 dígitos"
+                                maxLength={20}
+                                value={form.cest}
+                                onChange={(e) => {
+                                  const digits = e.target.value.replace(/\D/g, "").slice(0, 20)
+                                  setForm((f) => ({ ...f, cest: digits }))
+                                  setShowCestFiscalSuggest(digits.length >= 2)
+                                }}
+                                onFocus={() => {
+                                  if (form.cest.replace(/\D/g, "").length >= 2) setShowCestFiscalSuggest(true)
+                                }}
+                                onBlur={() => {
+                                  window.setTimeout(() => setShowCestFiscalSuggest(false), 180)
+                                }}
+                                autoComplete="off"
+                                className="w-full"
+                              />
+                              {cestFiscalSuggestionsPortal}
+                            </div>
                             <p className="text-xs text-muted-foreground">
-                              Opcional; só números, até 20 dígitos (substituição tributária / anexo XXVII IPI-ICMS).
+                              Opcional; só números. A partir de 2 dígitos, sugerimos CEST já usados (e NCM de
+                              referência se o NCM estiver vazio).
                             </p>
                           </div>
                         </div>
