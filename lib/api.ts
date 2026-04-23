@@ -1764,6 +1764,48 @@ class ApiService {
     return response.data;
   }
 
+  /** GET `/admin/products/resolve` — SKU, referência, EAN/código de barras ou id. */
+  async resolveAdminProduct(
+    code: string
+  ): Promise<
+    ApiResponse<{
+      id: number;
+      reference: string;
+      sku?: string;
+      commercial_name: string;
+      um: string;
+      price: number;
+      quantity_available: number;
+      image_url: string | null;
+    }>
+  > {
+    const response = await this.api.get('/admin/products/resolve', { params: { code: code.trim() } });
+    return response.data;
+  }
+
+  async getAdminQuickSaleNextCode(): Promise<ApiResponse<{ code: string }>> {
+    const response = await this.api.get('/admin/quick-sale/next-code');
+    return response.data;
+  }
+
+  async createAdminQuickSale(payload: {
+    customer_id: number;
+    salesman_id?: number | null;
+    payment_method_id: number;
+    items: Array<{
+      product_id: number;
+      quantity: number;
+      value_unit: number;
+      total: number;
+      um: string;
+    }>;
+    vl_discount: number;
+    vl_surcharge: number;
+  }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post('/admin/quick-sale', payload);
+    return response.data;
+  }
+
   async getAdminParameter(id: number): Promise<ApiResponse<unknown>> {
     const response = await this.api.get(`/admin/parameters/${id}`);
     return response.data;
@@ -1871,6 +1913,12 @@ class ApiService {
 
   async createAdminCustomer(payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
     const response = await this.api.post('/admin/customers', payload);
+    return response.data;
+  }
+
+  /** POST `/admin/customers/quick` — CPF/CNPJ, nome, telefone (venda de balcão). */
+  async createAdminCustomerQuick(payload: { nif: string; name: string; phone: string; city_id?: number }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.post('/admin/customers/quick', payload);
     return response.data;
   }
 
