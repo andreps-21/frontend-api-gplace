@@ -30,6 +30,11 @@ const navigation = [
     icon: ShoppingCart,
     permission: "vendas",
     children: [
+      {
+        name: "Venda Rápida",
+        href: "/dashboard/venda-rapida",
+        permission: "vendas-cadastrar",
+      },
       { 
         name: "Cadastrar Venda", 
         href: "/dashboard/vendas/cadastrar",
@@ -182,6 +187,12 @@ export function DashboardSidebar() {
     }
   }, [pathname])
 
+  useEffect(() => {
+    if (pathname.startsWith("/dashboard/venda-rapida")) {
+      setExpandedItems((prev) => (prev.includes("Vendas") ? prev : [...prev, "Vendas"]))
+    }
+  }, [pathname])
+
   // Sistema funcionando - logs removidos
 
   const toggleExpanded = (name: string) => {
@@ -275,6 +286,22 @@ export function DashboardSidebar() {
                 </button>
                 {!isCollapsed && expandedItems.includes("Vendas") && (
                   <ul className="mt-1 ml-8 space-y-1">
+                    <li>
+                      <Link
+                        href="/dashboard/venda-rapida"
+                        className={cn(
+                          "block px-3 py-2 rounded-lg text-sm transition-colors",
+                          pathname === "/dashboard/venda-rapida"
+                            ? "font-medium text-white"
+                            : "text-white/70 hover:bg-white/10 hover:text-white",
+                        )}
+                        style={pathname === "/dashboard/venda-rapida" ? { 
+                          backgroundColor: 'rgba(255, 255, 255, 0.12)', 
+                        } : {}}
+                      >
+                        Venda Rápida
+                      </Link>
+                    </li>
                     <li>
                       <Link
                         href="/dashboard/vendas/cadastrar"

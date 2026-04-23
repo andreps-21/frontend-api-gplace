@@ -60,6 +60,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { toast } from "sonner"
+import { formatMoneyCentsMask, formatPtBrMoney, numMoney } from "@/lib/money-cents-mask"
 import { cn } from "@/lib/utils"
 
 type Paginator<T> = { data: T[]; current_page: number; last_page: number; total: number; per_page?: number }
@@ -142,36 +143,6 @@ const PRODUCT_WIZARD_STEP_ICONS = [Package, ScrollText, Layers, Ruler, FileText]
 function num(v: string): number {
   const n = parseFloat(String(v).replace(",", "."))
   return Number.isFinite(n) ? n : 0
-}
-
-/** Valor monetário pt-BR (ex.: «1.234,56») → número. */
-function numMoney(v: string): number {
-  const t = String(v).trim()
-  if (!t) return 0
-  const normalized = t.replace(/\./g, "").replace(",", ".")
-  const n = parseFloat(normalized)
-  return Number.isFinite(n) ? n : 0
-}
-
-function formatPtBrMoney(n: number): string {
-  return new Intl.NumberFormat("pt-BR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(n)
-}
-
-/** Máximo de dígitos interpretados como centavos (evita overflow em `Number`). */
-const MONEY_CENTS_DIGIT_CAP = 14
-
-/**
- * Máscara «caixa»: só dígitos, cada novo dígito entra à direita como centavos.
- * Ex.: 1 → 0,01 · 11 → 0,11 · 111 → 1,11. Colar «1.234,56» → dígitos 123456 → 1.234,56.
- */
-function formatMoneyCentsMask(raw: string): string {
-  const digits = raw.replace(/\D/g, "").slice(0, MONEY_CENTS_DIGIT_CAP)
-  const cents = digits === "" ? 0 : Number.parseInt(digits, 10)
-  if (!Number.isFinite(cents) || cents < 0) return formatPtBrMoney(0)
-  return formatPtBrMoney(cents / 100)
 }
 
 function intQty(v: string): number {

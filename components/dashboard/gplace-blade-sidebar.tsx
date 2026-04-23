@@ -6,7 +6,7 @@ import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { gplaceBladeNavTree, type GplaceNavNode } from "@/lib/gplace-blade-nav"
 import { useGplacePermissions } from "@/lib/use-gplace-permissions"
-import { ChevronDown, Circle, LayoutDashboard } from "lucide-react"
+import { ChevronDown, Circle, LayoutDashboard, ScanLine, ShoppingCart } from "lucide-react"
 
 function flattenLinks(nodes: GplaceNavNode[]): Array<{ href: string; label: string }> {
   const acc: Array<{ href: string; label: string }> = []
@@ -42,7 +42,12 @@ function NavLink(props: {
         style={isActive ? { backgroundColor: "rgba(255,255,255,0.14)" } : undefined}
         title={isCollapsed ? label : undefined}
       >
-        {depth === 0 && href === "/dashboard" ? <LayoutDashboard className="h-4 w-4 shrink-0" /> : null}
+        {depth === 0 && href === "/dashboard" ? (
+          <LayoutDashboard className="h-4 w-4 shrink-0" />
+        ) : null}
+        {depth === 0 && href === "/dashboard/vendas/cadastrar" ? (
+          <ShoppingCart className="h-4 w-4 shrink-0" />
+        ) : null}
         {!isCollapsed && label}
       </Link>
     </li>
@@ -128,6 +133,10 @@ export function GplaceBladeSidebar(props: { isCollapsed: boolean }) {
               >
                 {item.href === "/dashboard" ? (
                   <LayoutDashboard className="h-4 w-4" />
+                ) : item.href === "/dashboard/vendas/cadastrar" ? (
+                  <ShoppingCart className="h-4 w-4" />
+                ) : item.href === "/dashboard/venda-rapida" ? (
+                  <ScanLine className="h-4 w-4" />
                 ) : (
                   <Circle className="h-2.5 w-2.5 fill-current" />
                 )}

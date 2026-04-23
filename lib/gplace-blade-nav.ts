@@ -108,7 +108,10 @@ export const gplaceBladeNavTree: GplaceNavNode[] = [
     label: "Vendas",
     requiresStore: true,
     anyOf: CANANY_VENDAS,
-    children: [{ kind: "link", label: "Pedido de Venda", href: "/dashboard/admin/pedidos", permission: "orders_view", requiresStore: true }],
+    children: [
+      { kind: "link", label: "Venda Rápida", href: "/dashboard/venda-rapida", permission: "orders_view", requiresStore: true },
+      { kind: "link", label: "Pedido de Venda", href: "/dashboard/admin/pedidos", permission: "orders_view", requiresStore: true },
+    ],
   },
   {
     kind: "group",

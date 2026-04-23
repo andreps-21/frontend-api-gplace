@@ -107,6 +107,20 @@ export interface DashboardOrdersYearlyPayload {
   meses: DashboardYearlyMonthRow[];
 }
 
+/** GET /dashboard/sales-summary */
+export interface DashboardSalesSummaryPayload {
+  vendas_hoje: number;
+  vendas_ontem: number;
+  variacao_vendas_percent: number;
+}
+
+/** GET /dashboard/orders-daily — pedidos por dia num mês. */
+export interface DashboardOrdersDailyPayload {
+  year: number;
+  month: number;
+  dias: Array<{ dia: number; label: string; total: number }>;
+}
+
 export interface HeaderNotificationItem {
   key: string;
   type: 'profile' | 'birthday_self' | 'birthday_peer';
@@ -1501,6 +1515,20 @@ class ApiService {
     }
   }
 
+  /** Pedidos agregados por dia (1…último dia) num mês/ano. */
+  async getDashboardOrdersDaily(params: {
+    year: number;
+    month: number;
+    seller_id?: number;
+  }): Promise<ApiResponse<DashboardOrdersDailyPayload>> {
+    try {
+      const response = await this.api.get('/dashboard/orders-daily', { params });
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
   // Método para buscar dados de faturamento do dashboard
   async getDashboardFaturamento(params: {
     date_from: string;
@@ -1523,6 +1551,52 @@ class ApiService {
   }): Promise<ApiResponse<any>> {
     try {
       const response = await this.api.get('/dashboard/stats', { params });
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /** Contagem de pedidos hoje/ontem e variação % (evita listar o mês inteiro). */
+  async getDashboardSalesSummary(params?: {
+    establishment_id?: number;
+    seller_id?: number;
+  }): Promise<ApiResponse<DashboardSalesSummaryPayload>> {
+    try {
+      const response = await this.api.get('/dashboard/sales-summary', { params });
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Últimas vendas do período; mesmo shape dos itens de GET /sales (não paginado).
+   */
+  async getDashboardRecentSales(params: {
+    date_from: string;
+    date_to: string;
+    limit?: number;
+    establishment_id?: number;
+    seller_id?: number;
+  }): Promise<ApiResponse<Record<string, unknown>[]>> {
+    try {
+      const response = await this.api.get('/dashboard/recent-sales', { params });
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /** Ranking de produtos por quantidade vendida (itens de pedido) no período. */
+  async getDashboardTopProducts(params: {
+    date_from: string;
+    date_to: string;
+    seller_id?: number;
+    limit?: number;
+  }): Promise<ApiResponse<unknown>> {
+    try {
+      const response = await this.api.get('/dashboard/top-products', { params });
       return response.data;
     } catch (error) {
       throw this.handleError(error);

@@ -2,34 +2,24 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ShoppingCart, TrendingUp, Users, Target, Wifi, Smartphone, Headphones, Coins, Cake } from "lucide-react"
+import { ShoppingCart, TrendingUp, Coins, Cake } from "lucide-react"
 import { DashboardHomeSkeleton } from "@/components/dashboard/dashboard-home-skeleton"
-import { apiService, type DashboardOrdersYearlyPayload } from "@/lib/api"
+import {
+  apiService,
+  type DashboardOrdersYearlyPayload,
+  type DashboardSalesSummaryPayload,
+} from "@/lib/api"
 import { OrdersYearlyChart } from "@/components/dashboard/orders-yearly-chart"
 import { useAuth } from "@/lib/auth"
 import { isGestorLevelRole } from "@/lib/permissions-role"
 import { notifications } from "@/lib/notifications"
-import { TopLojasCard } from "@/components/TopLojasCard"
+import { TopProdutosVendidosCard } from "@/components/TopProdutosVendidosCard"
 
 interface DashboardStats {
   vendasHoje: number
   vendasOntem: number
   variacaoVendas: number
   faturamentoMes: number
-  metaMes: number
-  vendedoresAtivos: number
-  faturamentoServico: number
-  faturamentoChip: number
-  faturamentoAparelho: number
-  faturamentoAcessorio: number
-  quantidadeVendasServico: number
-  quantidadeVendasChip: number
-  quantidadeVendasAparelho: number
-  quantidadeVendasAcessorio: number
-  variacaoServico: number
-  variacaoChip: number
-  variacaoAparelho: number
-  variacaoAcessorio: number
 }
 
 interface RecentSale {
@@ -60,16 +50,6 @@ function endOfMonthIso(): string {
   return new Date(t.getFullYear(), t.getMonth() + 1, 0).toISOString().split("T")[0]
 }
 
-function todayIso(): string {
-  return new Date().toISOString().split("T")[0]
-}
-
-function yesterdayIso(): string {
-  const y = new Date()
-  y.setDate(y.getDate() - 1)
-  return y.toISOString().split("T")[0]
-}
-
 export default function DashboardPage() {
   const { user } = useAuth()
   const [loading, setLoading] = useState(true)
@@ -78,20 +58,6 @@ export default function DashboardPage() {
     vendasOntem: 0,
     variacaoVendas: 0,
     faturamentoMes: 0,
-    metaMes: 0,
-    vendedoresAtivos: 0,
-    faturamentoServico: 0,
-    faturamentoChip: 0,
-    faturamentoAparelho: 0,
-    faturamentoAcessorio: 0,
-    quantidadeVendasServico: 0,
-    quantidadeVendasChip: 0,
-    quantidadeVendasAparelho: 0,
-    quantidadeVendasAcessorio: 0,
-    variacaoServico: 0,
-    variacaoChip: 0,
-    variacaoAparelho: 0,
-    variacaoAcessorio: 0,
   })
   const [recentSales, setRecentSales] = useState<RecentSale[]>([])
   const [establishments, setEstablishments] = useState<{ id: number; name: string }[]>([])
@@ -103,23 +69,15 @@ export default function DashboardPage() {
 
     const firstDay = startOfMonthIso()
     const lastDay = endOfMonthIso()
-    const today = todayIso()
-    const yesterday = yesterdayIso()
 
-    const salesParams: Record<string, string | number> = {
-      date_from: firstDay,
-      date_to: lastDay,
-        page: 1,
-      per_page: 10000,
-      }
-      
+    const activityScope: { seller_id?: number; establishment_id?: number } = {}
     if (user.role === "vendedor") {
-        salesParams.seller_id = user.id
+      activityScope.seller_id = user.id
       if (user.establishment_id) {
-          salesParams.establishment_id = user.establishment_id
+        activityScope.establishment_id = user.establishment_id
       }
     } else if (user.role === "gerente" && user.establishment_id) {
-      salesParams.establishment_id = user.establishment_id
+      activityScope.establishment_id = user.establishment_id
     }
 
     const statsParams: { establishment_id?: number; seller_id?: number } = {}
@@ -131,18 +89,6 @@ export default function DashboardPage() {
       statsParams.seller_id = user.id
     }
 
-    const faturamentoParams: {
-      date_from: string
-      date_to: string
-      seller_id?: number
-    } = {
-      date_from: firstDay,
-      date_to: lastDay,
-    }
-    if (user.role === "vendedor") {
-      faturamentoParams.seller_id = user.id
-    }
-
     const yearlyParams: { years_back: number; seller_id?: number } = { years_back: 2 }
     if (user.role === "vendedor") {
       yearlyParams.seller_id = user.id
@@ -150,37 +96,22 @@ export default function DashboardPage() {
 
     setLoading(true)
     try {
-      const [salesEnvelope, statsEnvelope, fatEnvelope, yearlyEnvelope] = await Promise.all([
-        apiService.getSales(salesParams),
+      const [summaryEnvelope, recentEnvelope, statsEnvelope, yearlyEnvelope] = await Promise.all([
+        apiService.getDashboardSalesSummary(activityScope),
+        apiService.getDashboardRecentSales({
+          date_from: firstDay,
+          date_to: lastDay,
+          limit: 5,
+          ...activityScope,
+        }),
         apiService.getDashboardStats(statsParams),
-        apiService.getDashboardFaturamento(faturamentoParams),
         apiService.getDashboardOrdersYearly(yearlyParams).catch(() => ({ message: "", data: null })),
       ])
 
-      const paginator = salesEnvelope?.data as
-        | { data?: unknown[] }
-        | undefined
-      const vendasRaw = Array.isArray(paginator?.data) ? paginator.data : []
-      const vendas = vendasRaw as Record<string, unknown>[]
-
-      const vendasHoje = vendas.filter((v) => {
-        const d = v.created_at ? new Date(String(v.created_at)).toISOString().split("T")[0] : ""
-        return d === today
-      })
-      const vendasOntem = vendas.filter((v) => {
-        const d = v.created_at ? new Date(String(v.created_at)).toISOString().split("T")[0] : ""
-        return d === yesterday
-      })
-
-      let variacaoVendas = 0
-      if (vendasOntem.length > 0) {
-        variacaoVendas =
-          ((vendasHoje.length - vendasOntem.length) / vendasOntem.length) * 100
-      } else if (vendasHoje.length > 0) {
-        variacaoVendas = 100
-      }
-
-      const recentSalesData: RecentSale[] = vendas.slice(0, 5).map((venda: Record<string, unknown>) => {
+      const summary = summaryEnvelope?.data as DashboardSalesSummaryPayload | undefined
+      const recentRaw = recentEnvelope?.data
+      const recentList = Array.isArray(recentRaw) ? recentRaw : []
+      const recentSalesData: RecentSale[] = recentList.map((venda: Record<string, unknown>) => {
         const seller = venda.seller as { name?: string } | undefined
         const prod = venda.product as { name?: string } | undefined
         const est = venda.establishment as { name?: string } | undefined
@@ -205,33 +136,11 @@ export default function DashboardPage() {
           }
         | undefined
 
-      const fat = fatEnvelope?.data as
-        | {
-            faturamento?: Record<string, number>
-            quantidade_vendas?: Record<string, number>
-            variacoes?: Record<string, number>
-          }
-        | undefined
-
       setStats({
-        vendasHoje: vendasHoje.length,
-        vendasOntem: vendasOntem.length,
-        variacaoVendas,
+        vendasHoje: summary?.vendas_hoje ?? 0,
+        vendasOntem: summary?.vendas_ontem ?? 0,
+        variacaoVendas: summary?.variacao_vendas_percent ?? 0,
         faturamentoMes: statsData?.faturamento_mes_atual ?? 0,
-        metaMes: 0,
-        vendedoresAtivos: statsData?.vendedores_ativos ?? 0,
-        faturamentoServico: fat?.faturamento?.servico ?? 0,
-        faturamentoChip: fat?.faturamento?.chip ?? 0,
-        faturamentoAparelho: fat?.faturamento?.aparelho ?? 0,
-        faturamentoAcessorio: fat?.faturamento?.acessorio ?? 0,
-        quantidadeVendasServico: fat?.quantidade_vendas?.servico ?? 0,
-        quantidadeVendasChip: fat?.quantidade_vendas?.chip ?? 0,
-        quantidadeVendasAparelho: fat?.quantidade_vendas?.aparelho ?? 0,
-        quantidadeVendasAcessorio: fat?.quantidade_vendas?.acessorio ?? 0,
-        variacaoServico: fat?.variacoes?.servico ?? 0,
-        variacaoChip: fat?.variacoes?.chip ?? 0,
-        variacaoAparelho: fat?.variacoes?.aparelho ?? 0,
-        variacaoAcessorio: fat?.variacoes?.acessorio ?? 0,
       })
 
       setRecentSales(recentSalesData)
@@ -297,138 +206,49 @@ export default function DashboardPage() {
     }
   }, [user, loadDashboard])
 
+  /** Mesma cor de marca do sidebar (`bg-[#2f3a8f]`). */
+  const kpiIconClass = "h-5 w-5 shrink-0 text-[#2f3a8f]"
+
   const statsData = [
-  {
-    title: "Vendas Hoje",
+    {
+      title: "Vendas Hoje",
       value: loading ? "..." : stats.vendasHoje.toString(),
       change: loading
         ? "..."
         : (() => {
             if (stats.variacaoVendas > 0) return `+${stats.variacaoVendas.toFixed(1)}%`
             if (stats.variacaoVendas < 0) return `${stats.variacaoVendas.toFixed(1)}%`
-          return "0%"
-      })(),
-    icon: ShoppingCart,
-    color: "text-blue-600",
-  },
-  {
-    title: "Faturamento do Mês",
+            return "0%"
+          })(),
+      icon: ShoppingCart,
+    },
+    {
+      title: "Faturamento do Mês",
       value: loading
         ? "..."
         : stats.faturamentoMes.toLocaleString("pt-BR", { minimumFractionDigits: 2 }),
       change: "Mensal",
-    icon: Coins,
-    color: "text-green-600",
-  },
-  {
-    title: "Meta do Mês",
-      value: "0%",
-      change: "Não definida",
-    icon: Target,
-      color: "text-gray-500",
-  },
-  {
-    title: "Vendedores Ativos",
-      value: loading ? "..." : stats.vendedoresAtivos.toString(),
-      change:
-        isGestorLevelRole(user?.role) || user?.role === "gerente"
-          ? `${establishments.length} loja(s)`
-          : "Sua loja",
-    icon: Users,
-    color: "text-purple-600",
-  },
-  {
-    title: "Faturamento Serviço",
-      value: loading
-        ? "..."
-        : `R$ ${stats.faturamentoServico.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-      change: loading
-        ? "..."
-        : (() => {
-      const quantity = stats.quantidadeVendasServico
-      const variation = stats.variacaoServico
-            const variationText =
-              variation >= 0 ? `+${variation.toFixed(1)}%` : `${variation.toFixed(1)}%`
-            return `${quantity} ${quantity === 1 ? "venda" : "vendas"} • ${variationText}`
-    })(),
-    icon: Wifi,
-    color: "text-blue-600",
-  },
-  {
-    title: "Faturamento Chip",
-      value: loading
-        ? "..."
-        : `R$ ${stats.faturamentoChip.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-      change: loading
-        ? "..."
-        : (() => {
-      const quantity = stats.quantidadeVendasChip
-      const variation = stats.variacaoChip
-            const variationText =
-              variation >= 0 ? `+${variation.toFixed(1)}%` : `${variation.toFixed(1)}%`
-            return `${quantity} ${quantity === 1 ? "venda" : "vendas"} • ${variationText}`
-    })(),
-    icon: Smartphone,
-    color: "text-green-600",
-  },
-  {
-    title: "Faturamento Aparelho",
-      value: loading
-        ? "..."
-        : `R$ ${stats.faturamentoAparelho.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-      change: loading
-        ? "..."
-        : (() => {
-      const quantity = stats.quantidadeVendasAparelho
-      const variation = stats.variacaoAparelho
-            const variationText =
-              variation >= 0 ? `+${variation.toFixed(1)}%` : `${variation.toFixed(1)}%`
-            return `${quantity} ${quantity === 1 ? "venda" : "vendas"} • ${variationText}`
-    })(),
-    icon: Smartphone,
-    color: "text-purple-600",
-  },
-  {
-    title: "Faturamento Acessório",
-      value: loading
-        ? "..."
-        : `R$ ${stats.faturamentoAcessorio.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-      change: loading
-        ? "..."
-        : (() => {
-      const quantity = stats.quantidadeVendasAcessorio
-      const variation = stats.variacaoAcessorio
-            const variationText =
-              variation >= 0 ? `+${variation.toFixed(1)}%` : `${variation.toFixed(1)}%`
-            return `${quantity} ${quantity === 1 ? "venda" : "vendas"} • ${variationText}`
-    })(),
-    icon: Headphones,
-    color: "text-orange-600",
-  },
-]
+      icon: Coins,
+    },
+  ]
 
   if (loading) {
     return <DashboardHomeSkeleton />
   }
 
+  const labelMesAtual = new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" })
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="mb-2 text-3xl font-bold text-foreground">Painel</h2>
-        <p className="text-muted-foreground">
-          Visão geral das operações da loja (dados de pedidos e vendedores)
-        </p>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
+      <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-4">
         {statsData.map((stat) => (
-          <Card key={stat.title}>
+          <Card key={stat.title} className="flex h-full min-h-0 min-w-0 flex-col">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
-              <stat.icon className={`h-5 w-5 ${stat.color}`} />
+              <CardTitle className="min-w-0 text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
+              <stat.icon className={kpiIconClass} />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-foreground">{stat.value}</div>
+            <CardContent className="flex-1">
+              <div className="text-2xl font-bold tabular-nums text-foreground">{stat.value}</div>
               <p className="mt-1 text-xs text-muted-foreground">{stat.change}</p>
             </CardContent>
           </Card>
@@ -437,14 +257,14 @@ export default function DashboardPage() {
 
       <OrdersYearlyChart payload={ordersYearly} />
 
-      <Card className="border-violet-200/80 bg-gradient-to-br from-violet-50/90 to-background dark:border-violet-800/60 dark:from-violet-950/30">
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Cake className="h-5 w-5 text-violet-600" />
-            Aniversariantes do mês
-            <span className="text-sm font-normal text-muted-foreground">
-              ({new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" })})
+          <CardTitle className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-2">
+            <span className="flex items-center gap-2 text-lg">
+              <Cake className="h-5 w-5 text-primary" />
+              Aniversariantes do mês
             </span>
+            <span className="text-sm font-normal text-muted-foreground">({labelMesAtual})</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -485,9 +305,12 @@ export default function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-blue-600" />
-              Vendas recentes (mês atual)
+            <CardTitle className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-2">
+              <span className="flex items-center gap-2 text-lg">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Vendas recentes
+              </span>
+              <span className="text-sm font-normal text-muted-foreground">({labelMesAtual})</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -517,7 +340,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <TopLojasCard />
+        <TopProdutosVendidosCard />
       </div>
     </div>
   )
