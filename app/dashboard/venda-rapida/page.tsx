@@ -257,6 +257,8 @@ export default function VendaRapidaPage() {
   const [buscaClienteVenda, setBuscaClienteVenda] = useState("")
   const [listaClienteVenda, setListaClienteVenda] = useState<Array<{ id: number; name: string; nif?: string }>>([])
   const [loadingClienteVenda, setLoadingClienteVenda] = useState(false)
+  /** Índice realçado na lista de clientes (setas; Enter seleciona). */
+  const [activeClienteVendaIndex, setActiveClienteVendaIndex] = useState(0)
   const [novoClienteNome, setNovoClienteNome] = useState("")
   const [novoClienteCpf, setNovoClienteCpf] = useState("")
   const [novoClienteTelefone, setNovoClienteTelefone] = useState("")
@@ -397,6 +399,15 @@ export default function VendaRapidaPage() {
     if (!dialogClienteVendaOpen) return
     setClienteVendaNovoInline(false)
   }, [searchClienteVendaParam, dialogClienteVendaOpen])
+
+  useEffect(() => {
+    if (!dialogClienteVendaOpen) return
+    if (listaClienteVenda.length === 0) {
+      setActiveClienteVendaIndex(0)
+      return
+    }
+    setActiveClienteVendaIndex((i) => Math.min(i, listaClienteVenda.length - 1))
+  }, [dialogClienteVendaOpen, listaClienteVenda.length])
 
   const updateProductMenuPosition = useCallback(() => {
     const el = productNameFieldWrapRef.current
@@ -1569,6 +1580,45 @@ export default function VendaRapidaPage() {
                   const d = onlyDigits(v).slice(0, 11)
                   setBuscaClienteVenda(formatCpfCnpjMask(d))
                 }}
+                onKeyDown={(e) => {
+                  const listaAberta =
+                    dialogClienteVendaOpen &&
+                    !clienteVendaNovoInline &&
+                    !loadingClienteVenda &&
+                    listaClienteVenda.length > 0 &&
+                    searchClienteVendaParam.length >= 2
+
+                  if (e.key === "ArrowDown") {
+                    if (!listaAberta) return
+                    e.preventDefault()
+                    setActiveClienteVendaIndex((i) => (i + 1) % listaClienteVenda.length)
+                    return
+                  }
+                  if (e.key === "ArrowUp") {
+                    if (!listaAberta) return
+                    e.preventDefault()
+                    setActiveClienteVendaIndex((i) => (i - 1 + listaClienteVenda.length) % listaClienteVenda.length)
+                    return
+                  }
+                  if (e.key === "Enter") {
+                    if (!listaAberta) return
+                    e.preventDefault()
+                    const c = listaClienteVenda[activeClienteVendaIndex]
+                    if (!c) return
+                    setClienteVendaNovoInline(false)
+                    setResumoClienteVenda({ id: c.id, name: c.name, nif: c.nif })
+                    setDialogClienteVendaOpen(false)
+                    setDialogResumoVendaOpen(true)
+                    return
+                  }
+                  if (e.key === "Escape") {
+                    // Fecha a lista (reduzindo o termo), mas mantém o input.
+                    if (searchClienteVendaParam.length >= 2) {
+                      e.preventDefault()
+                      setBuscaClienteVenda((t) => t.slice(0, 1))
+                    }
+                  }
+                }}
                 placeholder="000.000.000-00 ou nome"
                 className="mt-0.5 h-11 shrink-0 pl-3 text-base"
                 autoFocus
@@ -1596,14 +1646,24 @@ export default function VendaRapidaPage() {
                       <>
                         {listaClienteVenda.length > 0 ? (
                           <div className="divide-y divide-border/60">
-                            {listaClienteVenda.map((c) => {
+                            {listaClienteVenda.map((c, idx) => {
                               const nifR = c.nif?.trim() ? onlyDigits(c.nif) : ""
                               const nifExibir = nifR.length === 11 ? formatCpfCnpjMask(nifR) : (c.nif ?? "")
+                              const active = idx === activeClienteVendaIndex
                               return (
                                 <button
                                   key={c.id}
                                   type="button"
-                                  className="flex w-full min-h-0 flex-col items-start justify-start gap-0.5 break-words px-3 py-2.5 text-left hover:bg-muted"
+                                  id={`vr-cliente-venda-opt-${c.id}`}
+                                  className={cn(
+                                    "flex w-full min-h-0 flex-col items-start justify-start gap-0.5 break-words px-3 py-2.5 text-left outline-none",
+                                    "hover:bg-muted focus-visible:bg-muted",
+                                    active && "bg-muted",
+                                  )}
+                                  onMouseMove={() => {
+                                    if (active) return
+                                    setActiveClienteVendaIndex(idx)
+                                  }}
                                   onClick={() => {
                                     setClienteVendaNovoInline(false)
                                     setResumoClienteVenda({ id: c.id, name: c.name, nif: c.nif })
@@ -1802,7 +1862,24 @@ export default function VendaRapidaPage() {
             }
           }}
         >
-          <DialogContent className="h-[96dvh] max-h-[96dvh] w-full max-w-3xl gap-2 overflow-y-auto p-4 sm:h-[94dvh] sm:max-h-[94dvh] sm:max-w-3xl sm:gap-3 sm:p-5">
+          <DialogContent
+            className="h-[96dvh] max-h-[96dvh] w-full max-w-3xl gap-2 overflow-y-auto p-4 sm:h-[94dvh] sm:max-h-[94dvh] sm:max-w-3xl sm:gap-3 sm:p-5"
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return
+              if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
+              if (finalizando || resumoClienteVenda == null) return
+              const t = e.target
+              if (t instanceof HTMLElement) {
+                const tag = t.tagName
+                if (tag === "TEXTAREA" || tag === "INPUT" || tag === "SELECT") return
+              }
+              e.preventDefault()
+              void executarVenda(resumoClienteVenda.id, {
+                imprimirApos: false,
+                clienteResumo: { name: resumoClienteVenda.name, nif: resumoClienteVenda.nif },
+              })
+            }}
+          >
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-left">
                 <ShoppingCart className="h-4 w-4" />
@@ -1892,7 +1969,7 @@ export default function VendaRapidaPage() {
                 </Button>
                 <Button
                   type="button"
-                  variant="secondary"
+                  autoFocus
                   className="w-full sm:min-w-[9rem] sm:w-auto"
                   disabled={finalizando || resumoClienteVenda == null}
                   onClick={() => {
@@ -1907,6 +1984,7 @@ export default function VendaRapidaPage() {
                 </Button>
                 <Button
                   type="button"
+                  variant="outline"
                   className="w-full sm:min-w-[9rem] sm:w-auto"
                   disabled={finalizando || resumoClienteVenda == null}
                   onClick={() => {
