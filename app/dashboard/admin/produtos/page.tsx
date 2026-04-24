@@ -1841,7 +1841,9 @@ export default function AdminProdutosPage() {
                 disabled={sheetReadOnly}
                 className="flex min-h-0 min-w-0 flex-1 flex-col border-0 p-0 disabled:opacity-100"
               >
-                <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-6 py-4 pb-28 [scroll-padding-bottom:7rem] [scrollbar-gutter:stable]">
+                {/* Corpo rolável + rodapé na mesma coluna flexível: o rodapé deixa de competir com o scroll e dispensa padding artificial (pb-28). */}
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                  <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-6 py-4 pb-6 [scrollbar-gutter:stable]">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">{PRODUCT_WIZARD_STEPS[wizardStep - 1]?.title}</CardTitle>
@@ -2617,42 +2619,43 @@ export default function AdminProdutosPage() {
                     ) : null}
                   </CardContent>
                 </Card>
+                  </div>
+                  <SheetFooter className="mt-0 shrink-0 flex-col gap-3 border-t bg-background px-6 py-3 sm:flex-row sm:items-center sm:justify-between sm:space-x-2">
+                    <Button type="button" variant="ghost" size="sm" className="w-full sm:w-auto" onClick={() => setDialogOpen(false)}>
+                      {sheetReadOnly ? "Fechar" : "Cancelar"}
+                    </Button>
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:justify-end">
+                      {wizardStep > 1 ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full sm:w-auto"
+                          onClick={() => setWizardStep((s) => Math.max(1, s - 1))}
+                        >
+                          <ChevronLeft className="mr-1 h-4 w-4" />
+                          Voltar
+                        </Button>
+                      ) : null}
+                      {wizardStep < 5 ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="w-full sm:w-auto"
+                          onClick={() => setWizardStep((s) => Math.min(5, s + 1))}
+                        >
+                          Próximo
+                          <ArrowRight className="ml-1 h-4 w-4" />
+                        </Button>
+                      ) : !sheetReadOnly ? (
+                        <Button type="button" size="sm" className="w-full sm:w-auto" onClick={() => void save()} disabled={saving}>
+                          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? "Guardar" : "Criar"}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </SheetFooter>
                 </div>
               </fieldset>
-              <SheetFooter className="shrink-0 flex-col gap-3 border-t bg-background px-6 py-3 sm:flex-row sm:items-center sm:justify-between sm:space-x-2">
-                <Button type="button" variant="ghost" size="sm" className="w-full sm:w-auto" onClick={() => setDialogOpen(false)}>
-                  {sheetReadOnly ? "Fechar" : "Cancelar"}
-                </Button>
-                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:justify-end">
-                  {wizardStep > 1 ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full sm:w-auto"
-                      onClick={() => setWizardStep((s) => Math.max(1, s - 1))}
-                    >
-                      <ChevronLeft className="mr-1 h-4 w-4" />
-                      Voltar
-                    </Button>
-                  ) : null}
-                  {wizardStep < 5 ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="w-full sm:w-auto"
-                      onClick={() => setWizardStep((s) => Math.min(5, s + 1))}
-                    >
-                      Próximo
-                      <ArrowRight className="ml-1 h-4 w-4" />
-                    </Button>
-                  ) : !sheetReadOnly ? (
-                    <Button type="button" size="sm" className="w-full sm:w-auto" onClick={() => void save()} disabled={saving}>
-                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? "Guardar" : "Criar"}
-                    </Button>
-                  ) : null}
-                </div>
-              </SheetFooter>
             </div>
           </SheetContent>
         </Sheet>
