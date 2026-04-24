@@ -276,7 +276,25 @@ export default function AdminProdutosPage() {
   const [perPage, setPerPage] = useState(15)
   const [searchInput, setSearchInput] = useState("")
   const [effectiveSearch, setEffectiveSearch] = useState("")
+  const [skuInput, setSkuInput] = useState("")
+  const [effectiveSku, setEffectiveSku] = useState("")
+  const [filterEnabled, setFilterEnabled] = useState<"all" | "1" | "0">("all")
+  const [filterType, setFilterType] = useState<"all" | "P" | "S">("all")
+  const [filterSectionId, setFilterSectionId] = useState<string>("__all__")
+  const [filterBrandId, setFilterBrandId] = useState<string>("__all__")
+  const [filterHasImage, setFilterHasImage] = useState<"all" | "1" | "0">("all")
+  const [filterStock, setFilterStock] = useState<"all" | "out" | "low" | "ok">("all")
   const [paginator, setPaginator] = useState<Paginator<Record<string, unknown>> | null>(null)
+  const [metrics, setMetrics] = useState<{
+    total: number
+    ativos: number
+    inativos: number
+    sem_estoque: number
+    estoque_baixo: number
+    com_imagem: number
+    sem_imagem: number
+  } | null>(null)
+  const [metricsLoading, setMetricsLoading] = useState(false)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -407,6 +425,11 @@ export default function AdminProdutosPage() {
     const t = window.setTimeout(() => setEffectiveSearch(searchInput.trim()), 400)
     return () => window.clearTimeout(t)
   }, [searchInput])
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setEffectiveSku(skuInput.trim()), 350)
+    return () => window.clearTimeout(t)
+  }, [skuInput])
 
   const filteredBrandsForMenu = useMemo(
     () => filterBrandsForPicker(brands, brandSearch),
@@ -735,7 +758,7 @@ export default function AdminProdutosPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [effectiveSearch, perPage])
+  }, [effectiveSearch, effectiveSku, perPage, filterEnabled, filterType, filterSectionId, filterBrandId, filterHasImage, filterStock])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -744,6 +767,13 @@ export default function AdminProdutosPage() {
         page,
         per_page: perPage,
         search: effectiveSearch || undefined,
+        sku: effectiveSku || undefined,
+        is_enabled: filterEnabled === "all" ? undefined : filterEnabled === "1",
+        type: filterType === "all" ? undefined : filterType,
+        section_id: filterSectionId === "__all__" ? undefined : Number(filterSectionId),
+        brand_id: filterBrandId === "__all__" ? undefined : Number(filterBrandId),
+        has_image: filterHasImage === "all" ? undefined : filterHasImage === "1",
+        stock_status: filterStock === "all" ? undefined : filterStock,
       })
       const inner = laravelInnerData<Paginator<Record<string, unknown>>>(raw)
       setPaginator(inner)
@@ -753,11 +783,46 @@ export default function AdminProdutosPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, perPage, effectiveSearch])
+  }, [page, perPage, effectiveSearch, effectiveSku, filterEnabled, filterType, filterSectionId, filterBrandId, filterHasImage, filterStock])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  const loadMetrics = useCallback(async () => {
+    setMetricsLoading(true)
+    try {
+      const raw = await apiService.getAdminProductsMetrics({
+        search: effectiveSearch || undefined,
+        sku: effectiveSku || undefined,
+        is_enabled: filterEnabled === "all" ? undefined : filterEnabled === "1",
+        type: filterType === "all" ? undefined : filterType,
+        section_id: filterSectionId === "__all__" ? undefined : Number(filterSectionId),
+        brand_id: filterBrandId === "__all__" ? undefined : Number(filterBrandId),
+        has_image: filterHasImage === "all" ? undefined : filterHasImage === "1",
+        stock_status: filterStock === "all" ? undefined : filterStock,
+      })
+      const d = laravelInnerData<Record<string, unknown>>(raw)
+      setMetrics({
+        total: Number(d.total ?? 0) || 0,
+        ativos: Number(d.ativos ?? 0) || 0,
+        inativos: Number(d.inativos ?? 0) || 0,
+        sem_estoque: Number(d.sem_estoque ?? 0) || 0,
+        estoque_baixo: Number(d.estoque_baixo ?? 0) || 0,
+        com_imagem: Number(d.com_imagem ?? 0) || 0,
+        sem_imagem: Number(d.sem_imagem ?? 0) || 0,
+      })
+    } catch (e) {
+      console.error(e)
+      setMetrics(null)
+    } finally {
+      setMetricsLoading(false)
+    }
+  }, [effectiveSearch, effectiveSku, filterEnabled, filterType, filterSectionId, filterBrandId, filterHasImage, filterStock])
+
+  useEffect(() => {
+    void loadMetrics()
+  }, [loadMetrics])
 
   const loadMovements = useCallback(async (productId: number) => {
     setMovementsLoading(true)
@@ -809,6 +874,11 @@ export default function AdminProdutosPage() {
 
     return { meta: m, brands: brandsList, paymentOpts: paymentList }
   }
+
+  useEffect(() => {
+    // Carregar listas para filtros (secções/marcas) já na tela.
+    void loadAux()
+  }, [])
 
   const submitQuickBrand = async () => {
     const n = newBrandName.trim()
@@ -1515,6 +1585,7 @@ export default function AdminProdutosPage() {
                   <TableHead className="min-w-[100px]">SKU</TableHead>
                   <TableHead className="min-w-[120px]">Marca</TableHead>
                   <TableHead className="min-w-[120px]">Secção</TableHead>
+                  <TableHead className="min-w-[84px]">Imagem</TableHead>
                   <TableHead className="min-w-[104px] text-right">Preço venda</TableHead>
                   <TableHead className="min-w-[88px] text-right">Estoque</TableHead>
                   <TableHead className="min-w-[64px] text-right">Mín.</TableHead>
@@ -1525,6 +1596,10 @@ export default function AdminProdutosPage() {
               <TableBody>
                 {rows.map((row) => {
                   const enabled = row.is_enabled === true || row.is_enabled === 1 || row.is_enabled === "1"
+                  const hasImage = typeof (row as { image_url?: unknown }).image_url === "string" && String((row as { image_url?: unknown }).image_url).trim() !== ""
+                  const qtyNum = row.quantity != null ? Math.floor(Number(row.quantity)) : NaN
+                  const outOfStock = Number.isFinite(qtyNum) && qtyNum <= 0
+                  const lowStock = !outOfStock && isLowStock(row)
                   return (
                     <TableRow
                       key={String(row.id)}
@@ -1545,14 +1620,27 @@ export default function AdminProdutosPage() {
                       <TableCell className="py-2 text-sm text-muted-foreground">{String(row.sku ?? "")}</TableCell>
                       <TableCell className="py-2 text-sm">{String(row.brand ?? "")}</TableCell>
                       <TableCell className="py-2 text-sm text-muted-foreground">{String(row.section ?? "")}</TableCell>
+                      <TableCell className="py-2">
+                        {hasImage ? (
+                          <Badge className="bg-emerald-600 text-[11px] text-white hover:bg-emerald-700">Sim</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[11px]">
+                            Não
+                          </Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="py-2 text-right text-sm font-medium tabular-nums text-foreground">
                         {formatPtBrMoney(Number(row.price ?? 0))}
                       </TableCell>
                       <TableCell className="py-2 text-right tabular-nums">
                         <span className="inline-flex items-center justify-end gap-2">
-                          {row.quantity != null ? String(Math.floor(Number(row.quantity))) : "—"}
-                          {isLowStock(row) ? (
-                            <Badge variant="destructive" className="text-[10px] uppercase">
+                          {outOfStock ? null : row.quantity != null ? String(qtyNum) : "—"}
+                          {outOfStock ? (
+                            <Badge className="bg-red-600 text-[10px] uppercase text-white hover:bg-red-700">
+                              Sem estoque
+                            </Badge>
+                          ) : lowStock ? (
+                            <Badge className="bg-amber-500 text-[10px] uppercase text-white hover:bg-amber-600">
                               Baixo
                             </Badge>
                           ) : null}
@@ -1621,6 +1709,9 @@ export default function AdminProdutosPage() {
         <div className="space-y-4 p-4 md:hidden">
           {rows.map((row) => {
             const enabled = row.is_enabled === true || row.is_enabled === 1 || row.is_enabled === "1"
+            const qtyNum = row.quantity != null ? Math.floor(Number(row.quantity)) : NaN
+            const outOfStock = Number.isFinite(qtyNum) && qtyNum <= 0
+            const lowStock = !outOfStock && isLowStock(row)
             return (
               <Card key={String(row.id)} className="p-4">
                 <div className="space-y-3">
@@ -1639,6 +1730,17 @@ export default function AdminProdutosPage() {
                   <dl className="grid grid-cols-[minmax(0,auto)_1fr] gap-x-3 gap-y-2 border-t pt-3 text-sm">
                     <dt className="text-xs text-muted-foreground">SKU</dt>
                     <dd className="m-0 text-muted-foreground">{String(row.sku ?? "—")}</dd>
+                    <dt className="text-xs text-muted-foreground">Imagem</dt>
+                    <dd className="m-0">
+                      {typeof (row as { image_url?: unknown }).image_url === "string" &&
+                      String((row as { image_url?: unknown }).image_url).trim() !== "" ? (
+                        <Badge className="bg-emerald-600 text-[10px] text-white hover:bg-emerald-700">Sim</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px]">
+                          Não
+                        </Badge>
+                      )}
+                    </dd>
                     <dt className="text-xs text-muted-foreground">Marca</dt>
                     <dd className="m-0 text-muted-foreground">{String(row.brand ?? "—")}</dd>
                     <dt className="text-xs text-muted-foreground">Secção</dt>
@@ -1650,9 +1752,13 @@ export default function AdminProdutosPage() {
                     <dt className="text-xs text-muted-foreground">Estoque</dt>
                     <dd className="m-0 tabular-nums">
                       <span className="inline-flex items-center gap-2">
-                        {row.quantity != null ? String(Math.floor(Number(row.quantity))) : "—"}
-                        {isLowStock(row) ? (
-                          <Badge variant="destructive" className="text-[10px] uppercase">
+                        {outOfStock ? null : row.quantity != null ? String(qtyNum) : "—"}
+                        {outOfStock ? (
+                          <Badge className="bg-red-600 text-[10px] uppercase text-white hover:bg-red-700">
+                            Sem estoque
+                          </Badge>
+                        ) : lowStock ? (
+                          <Badge className="bg-amber-500 text-[10px] uppercase text-white hover:bg-amber-600">
                             Baixo
                           </Badge>
                         ) : null}
@@ -1756,10 +1862,6 @@ export default function AdminProdutosPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Produtos</h1>
-            <p className="mt-1 text-muted-foreground">
-              CRUD com meta <code className="text-xs">/admin/product-form-meta</code>. O saldo em estoque é{" "}
-              <code className="text-xs">products.quantity</code>; vendas na loja online reduzem o saldo.
-            </p>
             {loading ? (
               <div className="mt-2 space-y-2">
                 <Skeleton className="h-3 w-72 max-w-full" />
@@ -1774,13 +1876,6 @@ export default function AdminProdutosPage() {
                       : `Mostrando ${showingFrom}-${showingTo} de ${listTotal.toLocaleString("pt-BR")} produto(s)`}
                   </p>
                 )}
-                {listTotal > 0 && (
-                  <div className="mt-1">
-                    <Badge variant="secondary" className="text-[11px]">
-                      Total: {listTotal.toLocaleString("pt-BR")}
-                    </Badge>
-                  </div>
-                )}
               </>
             )}
           </div>
@@ -1790,9 +1885,42 @@ export default function AdminProdutosPage() {
           </Button>
         </div>
 
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <Card className="p-3.5">
+            <p className="text-xs font-medium uppercase text-muted-foreground">Total</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+              {metricsLoading ? "…" : (metrics?.total ?? 0).toLocaleString("pt-BR")}
+            </p>
+          </Card>
+          <Card className="p-3.5">
+            <p className="text-xs font-medium uppercase text-muted-foreground">Ativos</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+              {metricsLoading ? "…" : (metrics?.ativos ?? 0).toLocaleString("pt-BR")}
+            </p>
+          </Card>
+          <Card className="p-3.5">
+            <p className="text-xs font-medium uppercase text-muted-foreground">Sem estoque</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+              {metricsLoading ? "…" : (metrics?.sem_estoque ?? 0).toLocaleString("pt-BR")}
+            </p>
+          </Card>
+          <Card className="p-3.5">
+            <p className="text-xs font-medium uppercase text-muted-foreground">Estoque baixo</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+              {metricsLoading ? "…" : (metrics?.estoque_baixo ?? 0).toLocaleString("pt-BR")}
+            </p>
+          </Card>
+          <Card className="p-3.5">
+            <p className="text-xs font-medium uppercase text-muted-foreground">Com imagem</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+              {metricsLoading ? "…" : (metrics?.com_imagem ?? 0).toLocaleString("pt-BR")}
+            </p>
+          </Card>
+        </div>
+
         <Card className="p-4 sm:p-5">
-          <div className="flex flex-wrap items-end gap-x-5 gap-y-4">
-            <div className="min-w-0 w-full max-w-full sm:min-w-[220px] sm:max-w-md lg:max-w-xl">
+          <div className="grid gap-4 lg:grid-cols-12">
+            <div className="lg:col-span-5">
               <Label htmlFor="search-products" className="mb-1.5 block text-xs text-muted-foreground">
                 Busca
               </Label>
@@ -1803,13 +1931,172 @@ export default function AdminProdutosPage() {
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     id="search-products"
-                    placeholder="Descrição (nome comercial), SKU…"
+                    placeholder="Nome, descrição, referência…"
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     className="h-9 w-full pl-10"
                   />
                 </div>
               )}
+            </div>
+
+            <div className="lg:col-span-3">
+              <Label htmlFor="sku-products" className="mb-1.5 block text-xs text-muted-foreground">
+                SKU
+              </Label>
+              <Input
+                id="sku-products"
+                placeholder="Filtrar por SKU…"
+                value={skuInput}
+                onChange={(e) => setSkuInput(e.target.value)}
+                className="h-9 w-full"
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-2">
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">Activo</Label>
+                <Select value={filterEnabled} onValueChange={(v) => setFilterEnabled(v as any)}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="1">Sim</SelectItem>
+                    <SelectItem value="0">Não</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">Tipo</Label>
+                <Select value={filterType} onValueChange={(v) => setFilterType(v as any)}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="P">Produto</SelectItem>
+                    <SelectItem value="S">Serviço</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:col-span-12">
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">Estoque</Label>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      ["all", "Todos"],
+                      ["ok", "OK"],
+                      ["low", "Baixo"],
+                      ["out", "Sem estoque"],
+                    ] as const
+                  ).map(([val, lab]) => (
+                    <Button
+                      key={val}
+                      type="button"
+                      size="sm"
+                      variant={filterStock === val ? "secondary" : "outline"}
+                      className="h-9"
+                      aria-pressed={filterStock === val}
+                      onClick={() => setFilterStock(val)}
+                    >
+                      {lab}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">Imagem</Label>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      ["all", "Todas"],
+                      ["1", "Com imagem"],
+                      ["0", "Sem imagem"],
+                    ] as const
+                  ).map(([val, lab]) => (
+                    <Button
+                      key={val}
+                      type="button"
+                      size="sm"
+                      variant={filterHasImage === val ? "secondary" : "outline"}
+                      className="h-9"
+                      aria-pressed={filterHasImage === val}
+                      onClick={() => setFilterHasImage(val)}
+                    >
+                      {lab}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:col-span-12">
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">Secção</Label>
+                <Select value={filterSectionId} onValueChange={setFilterSectionId}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todas</SelectItem>
+                    {(meta?.sections ?? []).map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">Marca</Label>
+                <Select value={filterBrandId} onValueChange={setFilterBrandId}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todas</SelectItem>
+                    {brands.map((b) => (
+                      <SelectItem key={b.id} value={String(b.id)}>
+                        {b.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 lg:col-span-12">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSearchInput("")
+                  setSkuInput("")
+                  setFilterEnabled("all")
+                  setFilterType("all")
+                  setFilterSectionId("__all__")
+                  setFilterBrandId("__all__")
+                  setFilterHasImage("all")
+                  setFilterStock("all")
+                }}
+                disabled={
+                  searchInput.trim() === "" &&
+                  skuInput.trim() === "" &&
+                  filterEnabled === "all" &&
+                  filterType === "all" &&
+                  filterSectionId === "__all__" &&
+                  filterBrandId === "__all__" &&
+                  filterHasImage === "all" &&
+                  filterStock === "all"
+                }
+              >
+                Limpar filtros
+              </Button>
             </div>
           </div>
         </Card>

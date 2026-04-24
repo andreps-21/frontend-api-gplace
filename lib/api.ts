@@ -1759,8 +1759,24 @@ class ApiService {
     brand_id?: number;
     type?: string;
     sku?: string;
+    has_image?: boolean;
+    stock_status?: "out" | "low" | "ok";
   }): Promise<ApiResponse<unknown>> {
     const response = await this.api.get('/admin/products', { params });
+    return response.data;
+  }
+
+  async getAdminProductsMetrics(params?: {
+    search?: string;
+    is_enabled?: boolean;
+    section_id?: number;
+    brand_id?: number;
+    type?: string;
+    sku?: string;
+    has_image?: boolean;
+    stock_status?: "out" | "low" | "ok";
+  }): Promise<ApiResponse<unknown>> {
+    const response = await this.api.get('/admin/products/metrics', { params });
     return response.data;
   }
 
