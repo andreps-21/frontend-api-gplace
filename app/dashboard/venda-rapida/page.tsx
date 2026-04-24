@@ -1543,18 +1543,18 @@ export default function VendaRapidaPage() {
             }
           }}
         >
-          <DialogContent className="w-full max-w-xl gap-3 overflow-y-auto overflow-x-visible p-4 sm:p-5 max-h-[85dvh]">
-            <DialogHeader>
+          <DialogContent className="flex max-h-[92dvh] w-full max-w-xl flex-col gap-3 overflow-y-auto overflow-x-visible p-4 sm:p-5">
+            <DialogHeader className="shrink-0">
               <DialogTitle className="flex items-center gap-2 text-left">
                 <Users className="h-4 w-4" />
                 Cliente da venda
               </DialogTitle>
             </DialogHeader>
-            <p className="text-sm text-muted-foreground">
+            <p className="shrink-0 text-sm text-muted-foreground">
               Digite o CPF (até 11 dígitos) ou o nome. Ao completar 11 dígitos, validamos o CPF e mostramos se está cadastrado.
             </p>
-            <div className="relative z-0 mt-2 pb-2">
-              <Label className="text-xs text-muted-foreground" htmlFor="vr-cliente-venda-busca">
+            <div className="relative z-0 flex flex-col gap-1">
+              <Label className="shrink-0 text-xs text-muted-foreground" htmlFor="vr-cliente-venda-busca">
                 CPF ou nome
               </Label>
               <Input
@@ -1570,18 +1570,18 @@ export default function VendaRapidaPage() {
                   setBuscaClienteVenda(formatCpfCnpjMask(d))
                 }}
                 placeholder="000.000.000-00 ou nome"
-                className="mt-0.5 h-11 pl-3 text-base"
+                className="mt-0.5 h-11 shrink-0 pl-3 text-base"
                 autoFocus
                 autoComplete="off"
                 spellCheck={false}
               />
               {searchClienteVendaParam.length >= 2 || (docDigitosClienteVenda.length === 11 && !cpfCompletoValido) ? (
                 <div
-                  className="absolute left-0 right-0 z-[200] mt-1 flex max-h-[min(45dvh,360px)] flex-col overflow-hidden overscroll-contain rounded-md border border-border bg-popover text-popover-foreground shadow-xl"
+                  className="mt-1 flex min-h-0 max-h-[min(72dvh,calc(92dvh-12.5rem))] flex-col overflow-hidden overscroll-contain rounded-md border border-border bg-popover text-popover-foreground shadow-md"
                   role="listbox"
                   aria-label="Clientes encontrados"
                 >
-                  <div className="min-h-0 flex-1 overflow-y-auto">
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
                     {docDigitosClienteVenda.length === 11 && !cpfCompletoValido ? (
                       <div className="px-3 py-2.5 text-sm text-destructive">
                         CPF inválido: <span className="font-mono">{formatCpfCnpjMask(docDigitosClienteVenda)}</span>
@@ -1611,8 +1611,12 @@ export default function VendaRapidaPage() {
                                     setDialogResumoVendaOpen(true)
                                   }}
                                 >
-                                  <span className="text-sm font-medium text-popover-foreground">{c.name}</span>
-                                  {nifExibir ? <span className="text-xs text-muted-foreground">CPF: {nifExibir}</span> : null}
+                                  <span className="whitespace-normal text-sm font-medium leading-snug text-popover-foreground">
+                                    {c.name}
+                                  </span>
+                                  {nifExibir ? (
+                                    <span className="text-xs text-muted-foreground">CPF: {nifExibir}</span>
+                                  ) : null}
                                 </button>
                               )
                             })}
@@ -1622,141 +1626,140 @@ export default function VendaRapidaPage() {
                             Nenhum cliente com este critério ainda.
                           </div>
                         ) : null}
-                        {mostrarCadastroRapidoCliente && clienteVendaNovoInline ? (
-                          <div className="space-y-3 border-t border-border/60 bg-muted/25 p-4 pb-5 sm:p-5 sm:pb-6">
-                            <p className="text-xs text-muted-foreground">Preencha o que souber (campos opcionais).</p>
-                            <div>
-                              <Label className="text-xs text-muted-foreground" htmlFor="vr-novo-cliente-nome">
-                                Nome
-                              </Label>
-                              <Input
-                                id="vr-novo-cliente-nome"
-                                value={novoClienteNome}
-                                onChange={(e) => setNovoClienteNome(e.target.value)}
-                                className="mt-0.5 h-9 text-sm"
-                                maxLength={30}
-                                autoComplete="name"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-xs text-muted-foreground" htmlFor="vr-novo-cliente-cpf">
-                                CPF (opcional)
-                              </Label>
-                              <Input
-                                id="vr-novo-cliente-cpf"
-                                value={novoClienteCpf}
-                                onChange={(e) => {
-                                  const d = onlyDigits(e.target.value).slice(0, 11)
-                                  setNovoClienteCpf(formatCpfCnpjMask(d))
-                                }}
-                                placeholder="000.000.000-00"
-                                className="mt-0.5 h-9 text-sm"
-                                maxLength={14}
-                                inputMode="numeric"
-                                autoComplete="off"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-xs text-muted-foreground" htmlFor="vr-novo-cliente-tel">
-                                Telefone (opcional, com DDD)
-                              </Label>
-                              <Input
-                                id="vr-novo-cliente-tel"
-                                value={novoClienteTelefone}
-                                onChange={(e) => setNovoClienteTelefone(formatPhoneBrMask(e.target.value))}
-                                placeholder="(00) 00000-0000"
-                                className="mt-0.5 h-9 text-sm"
-                                maxLength={16}
-                                inputMode="tel"
-                                autoComplete="tel"
-                              />
-                            </div>
-                            <div className="flex gap-2 pt-1">
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => setClienteVendaNovoInline(false)}
-                                disabled={criandoCliente}
-                              >
-                                Voltar
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                className="flex-1"
-                                disabled={criandoCliente || finalizando}
-                                onClick={() => {
-                                  if (!novoClienteNome.trim()) {
-                                    toast.error("Informe o nome do cliente.")
-                                    return
-                                  }
-                                  const telD = onlyDigits(novoClienteTelefone)
-                                  if (telD.length > 0 && telD.length < 10) {
-                                    toast.error("Telefone inválido. Informe o DDD (mínimo 10 dígitos) ou deixe em branco.")
-                                    return
-                                  }
-                                  const cpfD = onlyDigits(novoClienteCpf)
-                                  if (cpfD.length > 0 && (cpfD.length !== 11 || !isValidCpf(cpfD))) {
-                                    toast.error("CPF inválido. Corrija ou deixe em branco.")
-                                    return
-                                  }
-                                  void (async () => {
-                                    setCriandoCliente(true)
-                                    try {
-                                      const r = await apiService.createAdminCustomerQuick({
-                                        nif: cpfD || null,
-                                        name: novoClienteNome.trim().slice(0, 30),
-                                        phone: telD || null,
-                                      })
-                                      const data = laravelInnerData(r) as { id?: number }
-                                      const newId =
-                                        data && typeof data === "object" && "id" in data
-                                          ? (data as { id: number }).id
-                                          : undefined
-                                      if (newId == null) {
-                                        throw new Error("Resposta do servidor sem id do cliente.")
-                                      }
-                                      const nomeCad = novoClienteNome.trim().slice(0, 30)
-                                      const nifCad = cpfD
-                                      setDialogClienteVendaOpen(false)
-                                      setNovoClienteNome("")
-                                      setNovoClienteCpf("")
-                                      setNovoClienteTelefone("")
-                                      setBuscaClienteVenda("")
-                                      setListaClienteVenda([])
-                                      setClienteVendaNovoInline(false)
-                                      setResumoClienteVenda({ id: newId, name: nomeCad, nif: nifCad || undefined })
-                                      setDialogResumoVendaOpen(true)
-                                    } catch (err) {
-                                      const data = (err as { response?: { data?: unknown } }).response?.data
-                                      const t422 = data ? laravelValidationErrorText(data) : null
-                                      const msgFromApi =
-                                        data && typeof data === "object" && data !== null && "message" in data
-                                          ? String((data as { message: unknown }).message)
-                                          : ""
-                                      const m =
-                                        (msgFromApi && msgFromApi !== "Erro de validação." ? msgFromApi : null) ??
-                                        t422 ??
-                                        (err as ApiError)?.message ??
-                                        "Não foi possível cadastrar o cliente."
-                                      toast.error(m)
-                                    } finally {
-                                      setCriandoCliente(false)
-                                    }
-                                  })()
-                                }}
-                              >
-                                {criandoCliente ? "A guardar…" : "Cadastrar e continuar"}
-                              </Button>
-                            </div>
-                          </div>
-                        ) : null}
                       </>
                     )}
                   </div>
-                  {mostrarCadastroRapidoCliente && !clienteVendaNovoInline ? (
-                    <div className="sticky bottom-0 border-t border-border/60 bg-popover/95 backdrop-blur">
+                  {mostrarCadastroRapidoCliente && clienteVendaNovoInline ? (
+                    <div className="shrink-0 space-y-3 border-t border-border/60 bg-muted/25 p-4 pb-5 sm:p-5 sm:pb-6">
+                      <p className="text-xs text-muted-foreground">Preencha o que souber (campos opcionais).</p>
+                      <div>
+                        <Label className="text-xs text-muted-foreground" htmlFor="vr-novo-cliente-nome">
+                          Nome
+                        </Label>
+                        <Input
+                          id="vr-novo-cliente-nome"
+                          value={novoClienteNome}
+                          onChange={(e) => setNovoClienteNome(e.target.value)}
+                          className="mt-0.5 h-9 text-sm"
+                          maxLength={30}
+                          autoComplete="name"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground" htmlFor="vr-novo-cliente-cpf">
+                          CPF (opcional)
+                        </Label>
+                        <Input
+                          id="vr-novo-cliente-cpf"
+                          value={novoClienteCpf}
+                          onChange={(e) => {
+                            const d = onlyDigits(e.target.value).slice(0, 11)
+                            setNovoClienteCpf(formatCpfCnpjMask(d))
+                          }}
+                          placeholder="000.000.000-00"
+                          className="mt-0.5 h-9 text-sm"
+                          maxLength={14}
+                          inputMode="numeric"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground" htmlFor="vr-novo-cliente-tel">
+                          Telefone (opcional, com DDD)
+                        </Label>
+                        <Input
+                          id="vr-novo-cliente-tel"
+                          value={novoClienteTelefone}
+                          onChange={(e) => setNovoClienteTelefone(formatPhoneBrMask(e.target.value))}
+                          placeholder="(00) 00000-0000"
+                          className="mt-0.5 h-9 text-sm"
+                          maxLength={16}
+                          inputMode="tel"
+                          autoComplete="tel"
+                        />
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setClienteVendaNovoInline(false)}
+                          disabled={criandoCliente}
+                        >
+                          Voltar
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="flex-1"
+                          disabled={criandoCliente || finalizando}
+                          onClick={() => {
+                            if (!novoClienteNome.trim()) {
+                              toast.error("Informe o nome do cliente.")
+                              return
+                            }
+                            const telD = onlyDigits(novoClienteTelefone)
+                            if (telD.length > 0 && telD.length < 10) {
+                              toast.error("Telefone inválido. Informe o DDD (mínimo 10 dígitos) ou deixe em branco.")
+                              return
+                            }
+                            const cpfD = onlyDigits(novoClienteCpf)
+                            if (cpfD.length > 0 && (cpfD.length !== 11 || !isValidCpf(cpfD))) {
+                              toast.error("CPF inválido. Corrija ou deixe em branco.")
+                              return
+                            }
+                            void (async () => {
+                              setCriandoCliente(true)
+                              try {
+                                const r = await apiService.createAdminCustomerQuick({
+                                  nif: cpfD || null,
+                                  name: novoClienteNome.trim().slice(0, 30),
+                                  phone: telD || null,
+                                })
+                                const data = laravelInnerData(r) as { id?: number }
+                                const newId =
+                                  data && typeof data === "object" && "id" in data
+                                    ? (data as { id: number }).id
+                                    : undefined
+                                if (newId == null) {
+                                  throw new Error("Resposta do servidor sem id do cliente.")
+                                }
+                                const nomeCad = novoClienteNome.trim().slice(0, 30)
+                                const nifCad = cpfD
+                                setDialogClienteVendaOpen(false)
+                                setNovoClienteNome("")
+                                setNovoClienteCpf("")
+                                setNovoClienteTelefone("")
+                                setBuscaClienteVenda("")
+                                setListaClienteVenda([])
+                                setClienteVendaNovoInline(false)
+                                setResumoClienteVenda({ id: newId, name: nomeCad, nif: nifCad || undefined })
+                                setDialogResumoVendaOpen(true)
+                              } catch (err) {
+                                const data = (err as { response?: { data?: unknown } }).response?.data
+                                const t422 = data ? laravelValidationErrorText(data) : null
+                                const msgFromApi =
+                                  data && typeof data === "object" && data !== null && "message" in data
+                                    ? String((data as { message: unknown }).message)
+                                    : ""
+                                const m =
+                                  (msgFromApi && msgFromApi !== "Erro de validação." ? msgFromApi : null) ??
+                                  t422 ??
+                                  (err as ApiError)?.message ??
+                                  "Não foi possível cadastrar o cliente."
+                                toast.error(m)
+                              } finally {
+                                setCriandoCliente(false)
+                              }
+                            })()
+                          }}
+                        >
+                          {criandoCliente ? "A guardar…" : "Cadastrar e continuar"}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : mostrarCadastroRapidoCliente ? (
+                    <div className="shrink-0 border-t border-border/60 bg-popover/95 backdrop-blur supports-[backdrop-filter]:bg-popover/80">
                       <button
                         type="button"
                         className="w-full bg-muted/40 px-3 py-2.5 text-left text-sm font-medium text-primary hover:bg-muted"
