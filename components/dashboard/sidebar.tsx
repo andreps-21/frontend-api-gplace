@@ -8,6 +8,18 @@ import {
   ShoppingCart,
   BarChart3,
   Settings,
+  ScanLine,
+  PlusCircle,
+  ListChecks,
+  Store,
+  Users,
+  ShieldCheck,
+  Tags,
+  Monitor,
+  Package,
+  Target,
+  Percent,
+  MessageSquare,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -34,16 +46,19 @@ const navigation = [
         name: "Venda Rápida",
         href: "/dashboard/venda-rapida",
         permission: "vendas-cadastrar",
+        icon: ScanLine,
       },
       { 
         name: "Cadastrar Venda", 
         href: "/dashboard/vendas/cadastrar",
-        permission: "vendas-cadastrar"
+        permission: "vendas-cadastrar",
+        icon: PlusCircle,
       },
       { 
         name: "Gerenciar Vendas", 
         href: "/dashboard/vendas/gerenciar",
-        permission: "vendas-gerenciar"
+        permission: "vendas-gerenciar",
+        icon: ListChecks,
       },
       // Desabilitado temporariamente
       // { name: "Buscar Pré-Venda", href: "/dashboard/vendas/pre-venda" },
@@ -58,42 +73,50 @@ const navigation = [
       { 
         name: "Por Loja", 
         href: "/dashboard/relatorios/loja",
-        permission: "relatorios-loja"
+        permission: "relatorios-loja",
+        icon: Store,
       },
       { 
         name: "Por Vendedor", 
         href: "/dashboard/relatorios/vendedor",
-        permission: "relatorios-vendedor"
+        permission: "relatorios-vendedor",
+        icon: Users,
       },
       { 
         name: "Relatório de Produtos", 
         href: "/dashboard/relatorios/ranking-produtos",
-        permission: "relatorios-ranking-produtos"
+        permission: "relatorios-ranking-produtos",
+        icon: Package,
       },
       { 
         name: "Pós-Pago", 
         href: "/dashboard/relatorios/pos-pago",
-        permission: "relatorios-pos-pago"
+        permission: "relatorios-pos-pago",
+        icon: Target,
       },
       { 
         name: "Controle", 
         href: "/dashboard/relatorios/controle",
-        permission: "relatorios-controle"
+        permission: "relatorios-controle",
+        icon: ListChecks,
       },
       { 
         name: "DACC", 
         href: "/dashboard/relatorios/dacc",
-        permission: "relatorios-dacc"
+        permission: "relatorios-dacc",
+        icon: ShieldCheck,
       },
       { 
         name: "Aparelhos", 
         href: "/dashboard/relatorios/aparelhos",
-        permission: "relatorios-aparelhos"
+        permission: "relatorios-aparelhos",
+        icon: Monitor,
       },
       { 
         name: "Acessórios", 
         href: "/dashboard/relatorios/acessorios",
-        permission: "relatorios-acessorios"
+        permission: "relatorios-acessorios",
+        icon: Tags,
       },
     ],
   },
@@ -106,53 +129,63 @@ const navigation = [
         name: "Usuários", 
         href: "/dashboard/gerenciar/usuarios",
         permission: "gerenciar-usuarios",
-        showForRoles: ["gestor", "gerente", "vendedor"] // Todos podem acessar, mas com permissões diferentes
+        showForRoles: ["gestor", "gerente", "vendedor"], // Todos podem acessar, mas com permissões diferentes
+        icon: Users,
       },
       { 
         name: "Estabelecimentos", 
         href: "/dashboard/gerenciar/estabelecimentos",
         permission: "gerenciar-estabelecimentos",
-        showForRoles: ["gestor"] // Apenas gestores podem gerenciar estabelecimentos
+        showForRoles: ["gestor"], // Apenas gestores podem gerenciar estabelecimentos
+        icon: Store,
       },
       { 
         name: "Clientes", 
         href: "/dashboard/gerenciar/pessoas",
-        permission: "gerenciar-pessoas"
+        permission: "gerenciar-pessoas",
+        icon: Users,
       },
       { 
         name: "Autorizações", 
         href: "/dashboard/gerenciar/autorizacoes",
-        permission: "gerenciar-autorizacoes"
+        permission: "gerenciar-autorizacoes",
+        icon: ShieldCheck,
       },
       { 
         name: "Categorias", 
         href: "/dashboard/gerenciar/categorias",
-        permission: "gerenciar-categorias"
+        permission: "gerenciar-categorias",
+        icon: Tags,
       },
       { 
         name: "Pontos de Venda", 
         href: "/dashboard/gerenciar/pdv",
-        permission: "gerenciar-pdv"
+        permission: "gerenciar-pdv",
+        icon: Monitor,
       },
       { 
         name: "Estoque", 
         href: "/dashboard/gerenciar/estoque",
-        permission: "gerenciar-estoque"
+        permission: "gerenciar-estoque",
+        icon: Package,
       },
       { 
         name: "Metas", 
         href: "/dashboard/gerenciar/metas",
-        permission: "gerenciar-metas"
+        permission: "gerenciar-metas",
+        icon: Target,
       },
       { 
         name: "Comissões", 
         href: "/dashboard/gerenciar/comissoes",
-        permission: "gerenciar-comissoes"
+        permission: "gerenciar-comissoes",
+        icon: Percent,
       },
       { 
         name: "Mural", 
         href: "/dashboard/gerenciar/mural",
-        permission: "gerenciar-mural"
+        permission: "gerenciar-mural",
+        icon: MessageSquare,
       },
     ],
   },
@@ -337,7 +370,10 @@ export function DashboardSidebar({
                           backgroundColor: 'rgba(255, 255, 255, 0.12)', 
                         } : {}}
                       >
-                        Venda Rápida
+                        <span className="flex items-center gap-2">
+                          <ScanLine className="h-4 w-4 shrink-0" />
+                          <span>Venda Rápida</span>
+                        </span>
                       </Link>
                     </li>
                     <li>
@@ -354,7 +390,10 @@ export function DashboardSidebar({
                           backgroundColor: 'rgba(255, 255, 255, 0.12)', 
                         } : {}}
                       >
-                        Cadastrar Venda
+                        <span className="flex items-center gap-2">
+                          <PlusCircle className="h-4 w-4 shrink-0" />
+                          <span>Cadastrar Venda</span>
+                        </span>
                       </Link>
                     </li>
                     <li>
@@ -371,7 +410,10 @@ export function DashboardSidebar({
                           backgroundColor: 'rgba(255, 255, 255, 0.12)', 
                         } : {}}
                       >
-                        Gerenciar Vendas
+                        <span className="flex items-center gap-2">
+                          <ListChecks className="h-4 w-4 shrink-0" />
+                          <span>Gerenciar Vendas</span>
+                        </span>
                       </Link>
                     </li>
                   </ul>
@@ -411,7 +453,10 @@ export function DashboardSidebar({
                           backgroundColor: 'rgba(255, 255, 255, 0.12)', 
                         } : {}}
                       >
-                        Por Vendedor
+                        <span className="flex items-center gap-2">
+                          <Users className="h-4 w-4 shrink-0" />
+                          <span>Por Vendedor</span>
+                        </span>
                       </Link>
                     </li>
                     <li>
@@ -428,7 +473,10 @@ export function DashboardSidebar({
                           backgroundColor: 'rgba(255, 255, 255, 0.12)', 
                         } : {}}
                       >
-                        Controle
+                        <span className="flex items-center gap-2">
+                          <ListChecks className="h-4 w-4 shrink-0" />
+                          <span>Controle</span>
+                        </span>
                       </Link>
                     </li>
                     <li>
@@ -445,7 +493,10 @@ export function DashboardSidebar({
                           backgroundColor: 'rgba(255, 255, 255, 0.12)', 
                         } : {}}
                       >
-                        Relatório de Produtos
+                        <span className="flex items-center gap-2">
+                          <Package className="h-4 w-4 shrink-0" />
+                          <span>Relatório de Produtos</span>
+                        </span>
                       </Link>
                     </li>
                   </ul>
@@ -565,6 +616,9 @@ export function DashboardSidebar({
                           (userPermissions.canViewAllUsers ? "Usuários" :
                            userPermissions.canViewEstablishmentUsers ? "Usuários da Loja" : "Meu Perfil") : 
                           child.name
+                        const ChildIcon = (child as { icon?: unknown }).icon as
+                          | undefined
+                          | ((p: { className?: string }) => JSX.Element)
                         return (
                           <li key={child.href}>
                             <Link
@@ -580,7 +634,10 @@ export function DashboardSidebar({
                                 backgroundColor: 'rgba(255, 255, 255, 0.12)', 
                               } : {}}
                             >
-                              {displayName}
+                              <span className="flex items-center gap-2">
+                                {ChildIcon ? <ChildIcon className="h-4 w-4 shrink-0" /> : null}
+                                <span>{displayName}</span>
+                              </span>
                             </Link>
                           </li>
                         )

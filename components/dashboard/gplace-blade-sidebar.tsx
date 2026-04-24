@@ -6,7 +6,87 @@ import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { gplaceBladeNavTree, type GplaceNavNode } from "@/lib/gplace-blade-nav"
 import { useGplacePermissions } from "@/lib/use-gplace-permissions"
-import { ChevronDown, Circle, LayoutDashboard, ScanLine, ShoppingCart } from "lucide-react"
+import {
+  ChevronDown,
+  Circle,
+  LayoutDashboard,
+  ScanLine,
+  ShoppingCart,
+  Package,
+  Users,
+  Store,
+  Tags,
+  Percent,
+  Settings,
+  ShieldCheck,
+  BarChart3,
+  FileText,
+  Grid3X3,
+  Ruler,
+  Truck,
+  Image as ImageIcon,
+  SlidersHorizontal,
+  KeyRound,
+  BadgePercent,
+} from "lucide-react"
+
+function iconForHref(href: string) {
+  switch (href) {
+    case "/dashboard":
+      return LayoutDashboard
+    case "/dashboard/venda-rapida":
+      return ScanLine
+    case "/dashboard/vendas/cadastrar":
+      return ShoppingCart
+    case "/dashboard/vendas/gerenciar":
+    case "/dashboard/admin/pedidos":
+      return FileText
+    case "/dashboard/admin/produtos":
+      return Package
+    case "/dashboard/admin/secoes":
+      return Tags
+    case "/dashboard/admin/pendente/grid":
+      return Grid3X3
+    case "/dashboard/admin/marcas":
+      return Tags
+    case "/dashboard/admin/unidades-medida":
+      return Ruler
+    case "/dashboard/admin/pendente/freights":
+      return Truck
+    case "/dashboard/admin/pendente/banners":
+    case "/dashboard/admin/pendente/size-image":
+    case "/dashboard/admin/pendente/interface-positions":
+      return ImageIcon
+    case "/dashboard/admin/leads":
+    case "/dashboard/admin/clientes":
+    case "/dashboard/admin/vendedores":
+      return Users
+    case "/dashboard/admin/tenant":
+    case "/dashboard/admin/lojas":
+      return Store
+    case "/dashboard/admin/pendente/coupons":
+      return BadgePercent
+    case "/dashboard/admin/pendente/payment-methods":
+      return Percent
+    case "/dashboard/admin/pendente/relatorio-produtos":
+    case "/dashboard/admin/pendente/relatorio-pedidos":
+      return BarChart3
+    case "/dashboard/admin/usuarios-loja":
+      return Users
+    case "/dashboard/admin/atribuicoes":
+    case "/dashboard/admin/permissoes":
+      return ShieldCheck
+    case "/dashboard/admin/parametros":
+    case "/dashboard/admin/configuracao-loja":
+      return Settings
+    case "/dashboard/admin/catalogos":
+      return SlidersHorizontal
+    case "/dashboard/admin/tokens":
+      return KeyRound
+    default:
+      return undefined
+  }
+}
 
 function flattenLinks(nodes: GplaceNavNode[]): Array<{ href: string; label: string }> {
   const acc: Array<{ href: string; label: string }> = []
@@ -29,6 +109,7 @@ function NavLink(props: {
     href === "/dashboard"
       ? pathname === "/dashboard"
       : pathname === href || pathname.startsWith(href + "/")
+  const Icon = iconForHref(href)
   return (
     <li>
       <Link
@@ -42,12 +123,7 @@ function NavLink(props: {
         style={isActive ? { backgroundColor: "rgba(255,255,255,0.14)" } : undefined}
         title={isCollapsed ? label : undefined}
       >
-        {depth === 0 && href === "/dashboard" ? (
-          <LayoutDashboard className="h-4 w-4 shrink-0" />
-        ) : null}
-        {depth === 0 && href === "/dashboard/vendas/cadastrar" ? (
-          <ShoppingCart className="h-4 w-4 shrink-0" />
-        ) : null}
+        {Icon ? <Icon className={cn("h-4 w-4 shrink-0", depth > 0 && "text-white/75")} /> : null}
         {!isCollapsed && label}
       </Link>
     </li>
@@ -138,7 +214,10 @@ export function GplaceBladeSidebar(props: { isCollapsed: boolean }) {
                 ) : item.href === "/dashboard/venda-rapida" ? (
                   <ScanLine className="h-4 w-4" />
                 ) : (
-                  <Circle className="h-2.5 w-2.5 fill-current" />
+                  (() => {
+                    const I = iconForHref(item.href)
+                    return I ? <I className="h-4 w-4" /> : <Circle className="h-2.5 w-2.5 fill-current" />
+                  })()
                 )}
               </Link>
             </li>
