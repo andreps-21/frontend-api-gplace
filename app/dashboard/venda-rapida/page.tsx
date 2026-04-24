@@ -878,8 +878,8 @@ export default function VendaRapidaPage() {
     )
 
   return (
-    <div className="flex h-full w-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden text-sm text-foreground">
-      <div className="mx-auto flex h-full w-full min-h-0 max-w-none flex-1 flex-col gap-2.5">
+    <div className="flex w-full min-w-0 flex-col overflow-x-hidden text-sm text-foreground">
+      <div className="mx-auto flex w-full min-w-0 max-w-none flex-col gap-2.5">
         <div className="shrink-0 space-y-1.5">
           <div className="flex min-w-0 gap-2.5 sm:gap-3">
             <div
@@ -897,7 +897,7 @@ export default function VendaRapidaPage() {
           <div className="space-y-3 sm:space-y-3.5">
             <div className="flex w-full min-h-0 min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:gap-3.5">
               <div className="flex w-full min-w-0 min-h-0 flex-1 flex-col gap-3 sm:min-w-0 sm:min-h-0 sm:flex-row sm:items-stretch sm:gap-0 sm:pl-0 sm:pr-0">
-                <div className="mx-auto w-full max-w-[17rem] self-stretch sm:mx-0 sm:flex sm:min-h-0 sm:min-w-0 sm:max-w-[17rem] sm:shrink-0 sm:basis-[17rem] sm:w-[17rem] sm:flex-col sm:pr-0">
+                <div className="hidden mx-auto w-full max-w-[17rem] self-stretch sm:mx-0 sm:flex sm:min-h-0 sm:min-w-0 sm:max-w-[17rem] sm:shrink-0 sm:basis-[17rem] sm:w-[17rem] sm:flex-col sm:pr-0">
                   <div className="mb-1.5 flex h-6 w-full min-w-0 items-center">
                     <Label className="text-xs font-normal leading-none text-muted-foreground">Imagem do produto</Label>
                   </div>
@@ -905,7 +905,7 @@ export default function VendaRapidaPage() {
                     className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col [container-type:size] sm:min-h-0 sm:w-full sm:items-stretch sm:justify-start"
                   >
                     <div
-                      className="relative z-10 flex aspect-square min-h-36 w-full min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-muted/40
+                      className="relative flex aspect-square min-h-36 w-full min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-muted/40
                         sm:max-w-full sm:shrink-0 sm:aspect-auto sm:self-start
                         sm:h-[min(100cqw,100cqh)] sm:min-h-12 sm:min-w-12
                         sm:w-[min(100cqw,100cqh)]"
@@ -938,7 +938,7 @@ export default function VendaRapidaPage() {
                   </div>
                 </div>
 
-                <div className="relative z-[1] flex min-w-0 w-full flex-1 flex-col gap-2 sm:min-w-0 sm:-ml-16 sm:pl-0">
+                <div className="flex min-w-0 w-full flex-1 flex-col gap-2 sm:min-w-0">
                   <div className="min-w-0 w-full">
                     <div className="mb-1.5 flex h-6 w-full min-w-0 items-center">
                       <Label className="text-xs leading-none text-muted-foreground">Código da venda</Label>
@@ -1194,11 +1194,9 @@ export default function VendaRapidaPage() {
         </Card>
         </div>
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2.5 max-lg:overflow-y-auto max-lg:overscroll-y-contain lg:overflow-hidden">
-          <div
-            className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)_auto] gap-3 lg:min-h-0 lg:grid-cols-2 lg:grid-rows-1 lg:items-stretch lg:gap-3 lg:[grid-template-columns:minmax(0,1fr)_minmax(0,1fr)]"
-          >
-            <Card className="flex h-full w-full min-w-0 min-h-[12rem] flex-col overflow-hidden p-0 lg:min-h-0">
+        <div className="flex w-full min-w-0 flex-col gap-2.5 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+          <div className="flex w-full min-w-0 flex-col gap-3 lg:min-h-0 lg:flex-1 lg:grid lg:grid-cols-2 lg:items-stretch lg:gap-3 lg:[grid-template-columns:minmax(0,1fr)_minmax(0,1fr)]">
+            <Card className="flex w-full min-w-0 min-h-[12rem] flex-col overflow-hidden p-0 lg:min-h-0 lg:h-full">
               <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 gap-y-2 space-y-0 border-b border-border py-2.5 pl-3 pr-2.5 sm:pl-4 sm:pr-4">
                 <CardTitle className="text-base">Itens</CardTitle>
                 <div className="flex w-full min-w-0 items-center justify-end gap-2 sm:ml-auto sm:w-auto sm:gap-3">
@@ -1400,9 +1398,9 @@ export default function VendaRapidaPage() {
           </div>
         </div>
 
-        <div className="relative z-10 flex shrink-0 flex-col gap-2.5 border-t border-border/50 bg-background pt-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={reiniciar} title="F5">
+        <div className="sticky bottom-0 z-20 flex shrink-0 flex-col gap-2.5 border-t border-border/50 bg-background/95 pt-2 backdrop-blur supports-[backdrop-filter]:bg-background/75 sm:relative sm:bottom-auto sm:flex-row sm:items-center sm:justify-between sm:bg-background sm:backdrop-blur-none">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+            <Button type="button" variant="outline" size="sm" onClick={reiniciar} title="F5" className="flex-1 sm:flex-none">
               Iniciar (F5)
             </Button>
             <Button
@@ -1411,37 +1409,38 @@ export default function VendaRapidaPage() {
               size="sm"
               onClick={() => setTipo("devolucao")}
               title="F4"
+              className="flex-1 sm:flex-none"
             >
               Devolução (F4)
             </Button>
-            <Button type="button" variant="outline" size="sm" className="opacity-50" disabled>
+            <Button type="button" variant="outline" size="sm" className="hidden opacity-50 sm:inline-flex" disabled>
               Importa consig.
             </Button>
-            <Button type="button" variant="outline" size="sm" className="opacity-50" disabled>
+            <Button type="button" variant="outline" size="sm" className="hidden opacity-50 sm:inline-flex" disabled>
               Pesquisar (F7)
             </Button>
-            <Button type="button" variant="outline" size="sm" className="opacity-50" disabled>
+            <Button type="button" variant="outline" size="sm" className="hidden opacity-50 sm:inline-flex" disabled>
               Alterar (F9)
             </Button>
-            <Button type="button" variant="outline" size="sm" className="opacity-50" disabled>
+            <Button type="button" variant="outline" size="sm" className="hidden opacity-50 sm:inline-flex" disabled>
               Imprimir
             </Button>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={excluirSelecionada} title="F11">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            <Button type="button" variant="outline" size="sm" onClick={excluirSelecionada} title="F11" className="w-full sm:w-auto">
               Excluir (F11)
             </Button>
             <Button
               type="button"
               size="default"
               onClick={() => void finalizar()}
-              className="gap-2 font-semibold"
+              className="w-full gap-2 font-semibold sm:w-auto"
               title="F10"
               disabled={finalizando}
             >
               {finalizando ? "A guardar…" : "Finalizar (F10)"}
             </Button>
-            <div className="ml-0 flex items-center gap-2 pl-0 sm:ml-2 sm:border-l sm:border-border sm:pl-2">
+            <div className="hidden items-center gap-2 sm:ml-2 sm:flex sm:border-l sm:border-border sm:pl-2">
               <Store className="h-4 w-4 text-muted-foreground" aria-hidden />
               <Button type="button" variant="secondary" size="sm" disabled>
                 Opções

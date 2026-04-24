@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Bell, LogOut, Server, Cloud, Wifi, WifiOff, KeyRound, Check, Trash2, ExternalLink, Cake } from "lucide-react"
+import { Bell, LogOut, Server, Cloud, Wifi, WifiOff, KeyRound, Check, Trash2, ExternalLink, Cake, Menu } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth"
@@ -20,7 +20,13 @@ import { usePermissions } from "@/lib/use-permissions"
 import { apiService, type HeaderNotificationItem, PROD_API_PUBLIC_ORIGIN } from "@/lib/api"
 import { isUiPreview } from "@/lib/ui-preview"
 
-export function DashboardHeader() {
+export function DashboardHeader({
+  isMobile = false,
+  onOpenMenu,
+}: {
+  isMobile?: boolean
+  onOpenMenu?: () => void
+}) {
   const router = useRouter()
   const { user, logout, isLoading: authLoading } = useAuth()
   const { userRole } = usePermissions()
@@ -154,9 +160,23 @@ export function DashboardHeader() {
   }
 
   return (
-    <header className="h-16 bg-background px-6 flex items-center justify-between">
-      {/* Indicador de API */}
-      <div className="flex items-center gap-2 text-sm flex-wrap">
+    <header className="h-16 bg-background px-4 sm:px-6 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-3 min-w-0">
+        {isMobile ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-9 w-9 shrink-0 lg:hidden"
+            onClick={() => onOpenMenu?.()}
+            aria-label="Abrir menu"
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
+        ) : null}
+
+        {/* Indicador de API */}
+        <div className="flex items-center gap-2 text-sm flex-wrap min-w-0">
         {isUiPreview() && (
           <div className="flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-900 rounded-md text-xs font-medium">
             Pré-visualização UI (sem sessão)
@@ -180,6 +200,7 @@ export function DashboardHeader() {
             <span>API Desconhecida</span>
           </div>
         )}
+      </div>
       </div>
 
       <div className="flex items-center gap-3">

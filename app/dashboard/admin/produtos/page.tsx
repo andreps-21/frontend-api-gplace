@@ -342,6 +342,10 @@ export default function AdminProdutosPage() {
   const [newUmInitials, setNewUmInitials] = useState("")
   const [newUmSaving, setNewUmSaving] = useState(false)
   const [wizardStep, setWizardStep] = useState(1)
+  const [productImageFile, setProductImageFile] = useState<File | null>(null)
+  const [productImagePreviewUrl, setProductImagePreviewUrl] = useState<string | null>(null)
+  const [productImageUrl, setProductImageUrl] = useState<string | null>(null)
+  const [uploadingProductImage, setUploadingProductImage] = useState(false)
 
   const [form, setForm] = useState({
     reference: "",
@@ -388,6 +392,16 @@ export default function AdminProdutosPage() {
     min_stock: "",
     stock_change_note: "",
   })
+
+  useEffect(() => {
+    if (!productImageFile) {
+      setProductImagePreviewUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(productImageFile)
+    setProductImagePreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [productImageFile])
 
   useEffect(() => {
     const t = window.setTimeout(() => setEffectiveSearch(searchInput.trim()), 400)
@@ -867,6 +881,8 @@ export default function AdminProdutosPage() {
   const openCreate = async () => {
     setProductDialogMode("create")
     setEditingId(null)
+    setProductImageFile(null)
+    setProductImageUrl(null)
     setBrandSearch("")
     setShowBrandSuggestions(false)
     setShowCommercialNameSuggestions(false)
@@ -947,6 +963,8 @@ export default function AdminProdutosPage() {
       }
       const raw = await apiService.getAdminProduct(id)
       const d = laravelInnerData<Record<string, unknown>>(raw)
+      setProductImageUrl(typeof (d as { image_url?: unknown }).image_url === "string" ? String((d as { image_url?: unknown }).image_url) : null)
+      setProductImageFile(null)
       const pms = (d.payment_methods ?? d.paymentMethods) as Array<{ id: number }> | undefined
       setPaymentSel(Array.isArray(pms) ? pms.map((x) => x.id) : [])
       const secs = (d.sections as Array<{ id: number }> | undefined) ?? []
@@ -1133,10 +1151,36 @@ export default function AdminProdutosPage() {
 
       if (editingId) {
         await apiService.updateAdminProduct(editingId, payload)
+        if (productImageFile) {
+          setUploadingProductImage(true)
+          try {
+            const r = await apiService.uploadAdminProductImages(editingId, [productImageFile])
+            const d = laravelInnerData<Record<string, unknown>>(r)
+            setProductImageUrl(typeof (d as { image_url?: unknown }).image_url === "string" ? String((d as { image_url?: unknown }).image_url) : null)
+            setProductImageFile(null)
+            toast.success("Imagem actualizada.")
+          } finally {
+            setUploadingProductImage(false)
+          }
+        }
         toast.success("Produto actualizado.")
         void loadMovements(editingId)
       } else {
-        await apiService.createAdminProduct(payload)
+        const created = await apiService.createAdminProduct(payload)
+        const createdData = laravelInnerData<Record<string, unknown>>(created)
+        const newId = Number((createdData as { id?: unknown }).id)
+        if (productImageFile && Number.isFinite(newId) && newId > 0) {
+          setUploadingProductImage(true)
+          try {
+            const r = await apiService.uploadAdminProductImages(newId, [productImageFile])
+            const d = laravelInnerData<Record<string, unknown>>(r)
+            setProductImageUrl(typeof (d as { image_url?: unknown }).image_url === "string" ? String((d as { image_url?: unknown }).image_url) : null)
+            setProductImageFile(null)
+            toast.success("Imagem enviada.")
+          } finally {
+            setUploadingProductImage(false)
+          }
+        }
         toast.success("Produto criado.")
       }
       setDialogOpen(false)
@@ -1482,7 +1526,18 @@ export default function AdminProdutosPage() {
                 {rows.map((row) => {
                   const enabled = row.is_enabled === true || row.is_enabled === 1 || row.is_enabled === "1"
                   return (
-                    <TableRow key={String(row.id)}>
+                    <TableRow
+                      key={String(row.id)}
+                      role="button"
+                      tabIndex={0}
+                      className="cursor-pointer hover:bg-muted/40 focus-visible:bg-muted/40"
+                      onClick={() => void openEdit(row)}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter") return
+                        e.preventDefault()
+                        void openEdit(row)
+                      }}
+                    >
                       <TableCell className="py-2 tabular-nums text-muted-foreground">{String(row.id)}</TableCell>
                       <TableCell className="py-2">
                         <span className="text-sm font-semibold text-foreground">{String(row.commercial_name ?? "")}</span>
@@ -1518,7 +1573,10 @@ export default function AdminProdutosPage() {
                             variant="outline"
                             size="icon"
                             className="h-7 w-7 hover:bg-sky-50 hover:text-sky-800"
-                            onClick={() => void openEdit(row, "view")}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void openEdit(row, "view")
+                            }}
                             title="Visualizar"
                             aria-label="Visualizar produto"
                           >
@@ -1529,7 +1587,10 @@ export default function AdminProdutosPage() {
                             variant="outline"
                             size="icon"
                             className="h-7 w-7 hover:bg-yellow-50 hover:text-yellow-800"
-                            onClick={() => void openEdit(row)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void openEdit(row)
+                            }}
                             title="Editar"
                           >
                             <Pencil className="h-3.5 w-3.5" />
@@ -1762,6 +1823,8 @@ export default function AdminProdutosPage() {
             if (!open) {
               setWizardStep(1)
               setProductDialogMode("create")
+              setProductImageFile(null)
+              setProductImageUrl(null)
               setShowBrandSuggestions(false)
               setBrandSearch("")
               setShowCommercialNameSuggestions(false)
@@ -2454,6 +2517,55 @@ export default function AdminProdutosPage() {
                     ) : null}
                     {wizardStep === 5 ? (
                       <>
+                        <div className="space-y-2">
+                          <h3 className="text-sm font-semibold text-foreground">Imagem do produto</h3>
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                            <div className="w-full sm:w-48">
+                              <div className="aspect-square w-full overflow-hidden rounded-md border bg-muted/30">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={productImagePreviewUrl ?? productImageUrl ?? "/images/noimage.png"}
+                                  alt="Pré-visualização"
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex-1 space-y-2">
+                              <p className="text-xs text-muted-foreground">
+                                Envie uma imagem (JPG/PNG/WebP). Ao enviar, substitui as imagens actuais do produto.
+                              </p>
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                <Input
+                                  type="file"
+                                  accept="image/*"
+                                  disabled={sheetReadOnly || uploadingProductImage || saving}
+                                  onChange={(e) => {
+                                    const f = e.target.files && e.target.files[0] ? e.target.files[0] : null
+                                    setProductImageFile(f)
+                                  }}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={sheetReadOnly || uploadingProductImage || saving || (!productImageFile && !productImageUrl)}
+                                  onClick={() => {
+                                    setProductImageFile(null)
+                                    setProductImageUrl(null)
+                                  }}
+                                >
+                                  Remover
+                                </Button>
+                              </div>
+                              {!editingId ? (
+                                <p className="text-[11px] text-muted-foreground">
+                                  Em novo produto, a imagem é enviada automaticamente após criar.
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+
                         <dl className="grid gap-3 rounded-lg border bg-muted/40 p-4 text-sm sm:grid-cols-2">
                           <div>
                             <dt className="text-xs text-muted-foreground">Referência</dt>

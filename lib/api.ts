@@ -2009,6 +2009,16 @@ class ApiService {
     return response.data;
   }
 
+  /** POST `/admin/products/:id/images` — multipart com `images[]` (substitui imagens actuais). */
+  async uploadAdminProductImages(id: number, images: File[]): Promise<ApiResponse<unknown>> {
+    const fd = new FormData();
+    for (const f of images) {
+      fd.append('images[]', f);
+    }
+    const response = await this.api.post(`/admin/products/${id}/images`, fd);
+    return response.data;
+  }
+
   async createAdminProduct(payload: Record<string, unknown>): Promise<ApiResponse<unknown>> {
     const response = await this.api.post('/admin/products', payload);
     return response.data;

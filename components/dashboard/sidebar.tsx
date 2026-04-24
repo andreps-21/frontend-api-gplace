@@ -173,7 +173,15 @@ const navigation = [
   // },
 ]
 
-export function DashboardSidebar() {
+export function DashboardSidebar({
+  isMobile = false,
+  mobileOpen = false,
+  onCloseMobile,
+}: {
+  isMobile?: boolean
+  mobileOpen?: boolean
+  onCloseMobile?: () => void
+}) {
   const pathname = usePathname()
   const [expandedItems, setExpandedItems] = useState<string[]>(["Vendas"])
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -193,6 +201,11 @@ export function DashboardSidebar() {
     }
   }, [pathname])
 
+  useEffect(() => {
+    // No mobile, a sidebar funciona como drawer e deve ficar sempre “aberta” internamente (sem modo colapsado).
+    if (isMobile) setIsCollapsed(false)
+  }, [isMobile])
+
   // Sistema funcionando - logs removidos
 
   const toggleExpanded = (name: string) => {
@@ -200,6 +213,7 @@ export function DashboardSidebar() {
   }
 
   const toggleCollapse = () => {
+    if (isMobile) return
     setIsCollapsed(!isCollapsed)
     // Fechar todos os submenus quando colapsar
     if (!isCollapsed) {
@@ -207,11 +221,22 @@ export function DashboardSidebar() {
     }
   }
 
+  const closeIfMobile = () => {
+    if (isMobile) onCloseMobile?.()
+  }
+
   return (
     <aside
       className={cn(
         "flex flex-col border-r border-[#262f73] bg-[#2f3a8f] transition-all duration-300",
-        isCollapsed ? "w-16" : "w-64"
+        isMobile
+          ? cn(
+              "fixed inset-y-0 left-0 z-[60] w-72 max-w-[85vw] transform shadow-2xl transition-transform duration-200 ease-out",
+              mobileOpen ? "translate-x-0" : "-translate-x-full",
+            )
+          : isCollapsed
+            ? "w-16"
+            : "w-64",
       )}
     >
       <div className={cn("border-b border-white/20", isCollapsed ? "p-2" : "p-6")}>
@@ -230,17 +255,28 @@ export function DashboardSidebar() {
               </span>
             </div>
           )}
-          <button
-            onClick={toggleCollapse}
-            className="p-1 rounded-md hover:bg-white/10 transition-colors"
-            title={isCollapsed ? "Expandir sidebar" : "Colapsar sidebar"}
-          >
-            {isCollapsed ? (
-              <ChevronRight className="w-4 h-4 text-white" />
-            ) : (
-              <ChevronLeft className="w-4 h-4 text-white" />
-            )}
-          </button>
+          {isMobile ? (
+            <button
+              onClick={() => onCloseMobile?.()}
+              className="rounded-md p-1 transition-colors hover:bg-white/10"
+              title="Fechar menu"
+              aria-label="Fechar menu"
+            >
+              <ChevronLeft className="h-4 w-4 text-white" />
+            </button>
+          ) : (
+            <button
+              onClick={toggleCollapse}
+              className="rounded-md p-1 transition-colors hover:bg-white/10"
+              title={isCollapsed ? "Expandir sidebar" : "Colapsar sidebar"}
+            >
+              {isCollapsed ? (
+                <ChevronRight className="h-4 w-4 text-white" />
+              ) : (
+                <ChevronLeft className="h-4 w-4 text-white" />
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -252,6 +288,7 @@ export function DashboardSidebar() {
               <li>
                 <Link
                   href="/dashboard"
+                  onClick={closeIfMobile}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                     pathname === "/dashboard"
@@ -289,6 +326,7 @@ export function DashboardSidebar() {
                     <li>
                       <Link
                         href="/dashboard/venda-rapida"
+                        onClick={closeIfMobile}
                         className={cn(
                           "block px-3 py-2 rounded-lg text-sm transition-colors",
                           pathname === "/dashboard/venda-rapida"
@@ -305,6 +343,7 @@ export function DashboardSidebar() {
                     <li>
                       <Link
                         href="/dashboard/vendas/cadastrar"
+                        onClick={closeIfMobile}
                         className={cn(
                           "block px-3 py-2 rounded-lg text-sm transition-colors",
                           pathname === "/dashboard/vendas/cadastrar"
@@ -321,6 +360,7 @@ export function DashboardSidebar() {
                     <li>
                       <Link
                         href="/dashboard/vendas/gerenciar"
+                        onClick={closeIfMobile}
                         className={cn(
                           "block px-3 py-2 rounded-lg text-sm transition-colors",
                           pathname === "/dashboard/vendas/gerenciar"
@@ -360,6 +400,7 @@ export function DashboardSidebar() {
                     <li>
                       <Link
                         href="/dashboard/relatorios/vendedor"
+                        onClick={closeIfMobile}
                         className={cn(
                           "block px-3 py-2 rounded-lg text-sm transition-colors",
                           pathname === "/dashboard/relatorios/vendedor"
@@ -376,6 +417,7 @@ export function DashboardSidebar() {
                     <li>
                       <Link
                         href="/dashboard/relatorios/controle"
+                        onClick={closeIfMobile}
                         className={cn(
                           "block px-3 py-2 rounded-lg text-sm transition-colors",
                           pathname === "/dashboard/relatorios/controle"
@@ -392,6 +434,7 @@ export function DashboardSidebar() {
                     <li>
                       <Link
                         href="/dashboard/relatorios/ranking-produtos"
+                        onClick={closeIfMobile}
                         className={cn(
                           "block px-3 py-2 rounded-lg text-sm transition-colors",
                           pathname === "/dashboard/relatorios/ranking-produtos"
@@ -446,6 +489,7 @@ export function DashboardSidebar() {
                   <li key={item.name}>
                     <Link
                       href={item.href!}
+                      onClick={closeIfMobile}
                       className={cn(
                         "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                         isActive
@@ -486,6 +530,7 @@ export function DashboardSidebar() {
                   {isCollapsed ? (
                     <Link
                       href={filteredChildren[0]?.href ?? "/dashboard"}
+                      onClick={closeIfMobile}
                       className={cn(
                         "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-white/90 transition-colors hover:bg-white/10 hover:text-white",
                         "justify-center"
@@ -524,6 +569,7 @@ export function DashboardSidebar() {
                           <li key={child.href}>
                             <Link
                               href={child.href}
+                              onClick={closeIfMobile}
                               className={cn(
                                 "block px-3 py-2 rounded-lg text-sm transition-colors",
                                 isActive
