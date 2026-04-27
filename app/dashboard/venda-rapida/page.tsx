@@ -263,6 +263,7 @@ export default function VendaRapidaPage() {
   const [novoClienteCpf, setNovoClienteCpf] = useState("")
   const [novoClienteTelefone, setNovoClienteTelefone] = useState("")
   const [criandoCliente, setCriandoCliente] = useState(false)
+  const [garantindoClienteFinal, setGarantindoClienteFinal] = useState(false)
   /** Formulário de cadastro dentro do painel (como o produto). */
   const [clienteVendaNovoInline, setClienteVendaNovoInline] = useState(false)
 
@@ -305,6 +306,56 @@ export default function VendaRapidaPage() {
       if (r.data?.code) setCodigoVenda(r.data.code)
     } catch {
       setCodigoVenda(String(10_000 + Math.floor(Math.random() * 89_000)))
+    }
+  }, [])
+
+  const continuarSemClienteIdentificado = useCallback(async () => {
+    const nomeClienteFinal = "Consumidor final"
+    setGarantindoClienteFinal(true)
+    try {
+      const existentes = await apiService.getAdminCustomers({ search: nomeClienteFinal, per_page: 30, page: 1 })
+      const raw = paginatedRows<ApiCustomerRow>(existentes as object)
+      const clienteExistente = raw.map(mapCustomerRowFromApi).find((c) => c.name.trim().toLowerCase() === nomeClienteFinal.toLowerCase())
+
+      let clienteResumo = clienteExistente
+      if (!clienteResumo) {
+        const criado = await apiService.createAdminCustomerQuick({
+          nif: null,
+          name: nomeClienteFinal,
+          phone: null,
+        })
+        const data = laravelInnerData(criado) as { id?: number; name?: string; nif?: string | null } | null
+        if (data?.id == null) {
+          throw new Error("Resposta do servidor sem id do cliente.")
+        }
+        clienteResumo = {
+          id: data.id,
+          name: (data.name ?? nomeClienteFinal).trim() || nomeClienteFinal,
+          nif: data.nif ?? undefined,
+        }
+      }
+
+      setClienteVendaNovoInline(false)
+      setDialogClienteVendaOpen(false)
+      setBuscaClienteVenda("")
+      setListaClienteVenda([])
+      setResumoClienteVenda(clienteResumo)
+      setDialogResumoVendaOpen(true)
+    } catch (err) {
+      const data = (err as { response?: { data?: unknown } }).response?.data
+      const t422 = data ? laravelValidationErrorText(data) : null
+      const msgFromApi =
+        data && typeof data === "object" && data !== null && "message" in data
+          ? String((data as { message: unknown }).message)
+          : ""
+      const m =
+        (msgFromApi && msgFromApi !== "Erro de validação." ? msgFromApi : null) ??
+        t422 ??
+        (err as ApiError)?.message ??
+        "Não foi possível continuar sem CPF."
+      toast.error(m)
+    } finally {
+      setGarantindoClienteFinal(false)
     }
   }, [])
 
@@ -1561,8 +1612,17 @@ export default function VendaRapidaPage() {
               </DialogTitle>
             </DialogHeader>
             <p className="shrink-0 text-sm text-muted-foreground">
-              Digite o CPF (até 11 dígitos) ou o nome. Ao completar 11 dígitos, validamos o CPF e mostramos se está cadastrado.
+              Digite o CPF ou o nome para vincular um cliente, ou continue como Consumidor final quando o cliente não quiser se identificar.
             </p>
+            <Button
+              type="button"
+              variant="secondary"
+              className="shrink-0 justify-start"
+              disabled={garantindoClienteFinal || criandoCliente || finalizando}
+              onClick={() => void continuarSemClienteIdentificado()}
+            >
+              {garantindoClienteFinal ? "A preparar Consumidor final…" : "Continuar sem CPF"}
+            </Button>
             <div className="relative z-0 flex flex-col gap-1">
               <Label className="shrink-0 text-xs text-muted-foreground" htmlFor="vr-cliente-venda-busca">
                 CPF ou nome
