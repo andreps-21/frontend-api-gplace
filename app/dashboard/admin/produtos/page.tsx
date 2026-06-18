@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { type DragEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { apiService } from "@/lib/api"
 import { laravelInnerData } from "@/lib/laravel-data"
@@ -145,7 +145,7 @@ const EMPTY_PRODUCT_META: Meta = {
 const PRODUCT_WIZARD_STEPS = [
   { id: 1, title: "Identificação", sub: "Referência, descrição do produto/serviço e tipo" },
   { id: 2, title: "Dados fiscais", sub: "NF-e, NCM e tributação de referência" },
-  { id: 3, title: "Catálogo", sub: "Secção, marca, unidade de medida" },
+  { id: 3, title: "Catálogo", sub: "Categoria, marca, unidade de medida" },
   { id: 4, title: "Preços e estoque", sub: "Valores na nota, venda, promoção e quantidades" },
   { id: 5, title: "Conteúdo e revisão", sub: "Textos e confirmar" },
 ] as const
@@ -181,7 +181,7 @@ function ProdutosListSkeleton({ rowCount = 8 }: { rowCount?: number }) {
                 <TableHead className="min-w-[180px]">Nome</TableHead>
                 <TableHead className="min-w-[100px]">SKU</TableHead>
                 <TableHead className="min-w-[120px]">Marca</TableHead>
-                <TableHead className="min-w-[120px]">Secção</TableHead>
+                <TableHead className="min-w-[120px]">Categoria</TableHead>
                 <TableHead className="min-w-[100px] text-right">Preço venda</TableHead>
                 <TableHead className="min-w-[80px] text-right">Estoque</TableHead>
                 <TableHead className="min-w-[64px] text-right">Mín.</TableHead>
@@ -364,6 +364,7 @@ export default function AdminProdutosPage() {
   const [productImagePreviewUrl, setProductImagePreviewUrl] = useState<string | null>(null)
   const [productImageUrl, setProductImageUrl] = useState<string | null>(null)
   const [uploadingProductImage, setUploadingProductImage] = useState(false)
+  const [isProductImageDragging, setIsProductImageDragging] = useState(false)
 
   const [form, setForm] = useState({
     reference: "",
@@ -1146,6 +1147,26 @@ export default function AdminProdutosPage() {
     setPaymentSel((prev) => (checked ? [...prev, id] : prev.filter((x) => x !== id)))
   }
 
+  const selectProductImageFile = (file: File | null) => {
+    if (!file) {
+      setProductImageFile(null)
+      return
+    }
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecione um arquivo de imagem.")
+      return
+    }
+    setProductImageFile(file)
+  }
+
+  const handleProductImageDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsProductImageDragging(false)
+    if (sheetReadOnly || uploadingProductImage || saving) return
+    selectProductImageFile(event.dataTransfer.files?.[0] ?? null)
+  }
+
   const toggleSec = (id: number, checked: boolean) => {
     const primary = form.section_id.trim() === "" ? null : Number(form.section_id)
     if (primary != null && !Number.isNaN(primary) && id === primary) return
@@ -1584,7 +1605,7 @@ export default function AdminProdutosPage() {
                   <TableHead className="min-w-[180px]">Nome</TableHead>
                   <TableHead className="min-w-[100px]">SKU</TableHead>
                   <TableHead className="min-w-[120px]">Marca</TableHead>
-                  <TableHead className="min-w-[120px]">Secção</TableHead>
+                  <TableHead className="min-w-[120px]">Categoria</TableHead>
                   <TableHead className="min-w-[84px]">Imagem</TableHead>
                   <TableHead className="min-w-[104px] text-right">Preço venda</TableHead>
                   <TableHead className="min-w-[88px] text-right">Estoque</TableHead>
@@ -1743,7 +1764,7 @@ export default function AdminProdutosPage() {
                     </dd>
                     <dt className="text-xs text-muted-foreground">Marca</dt>
                     <dd className="m-0 text-muted-foreground">{String(row.brand ?? "—")}</dd>
-                    <dt className="text-xs text-muted-foreground">Secção</dt>
+                    <dt className="text-xs text-muted-foreground">Categoria</dt>
                     <dd className="m-0 text-muted-foreground">{String(row.section ?? "—")}</dd>
                     <dt className="text-xs text-muted-foreground">Preço venda</dt>
                     <dd className="m-0 font-medium tabular-nums text-foreground">
@@ -2036,7 +2057,7 @@ export default function AdminProdutosPage() {
 
             <div className="grid gap-4 sm:grid-cols-2 lg:col-span-12">
               <div className="grid gap-1.5">
-                <Label className="text-xs text-muted-foreground">Secção</Label>
+                <Label className="text-xs text-muted-foreground">Categoria</Label>
                 <Select value={filterSectionId} onValueChange={setFilterSectionId}>
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="Todas" />
@@ -2132,9 +2153,9 @@ export default function AdminProdutosPage() {
               <SheetHeader className="shrink-0 space-y-1 border-b px-6 pb-4 pt-6 text-left">
                 <SheetTitle>
                   {productDialogMode === "view" && editingId
-                    ? `Ver produto #${editingId}`
+                    ? `Ver produto ${editingId}`
                     : editingId
-                      ? `Editar produto #${editingId}`
+                      ? `Editar produto ${editingId}`
                       : "Novo produto"}
                 </SheetTitle>
                 <SheetDescription>
@@ -2210,6 +2231,90 @@ export default function AdminProdutosPage() {
                   <CardContent className="space-y-4">
                     {wizardStep === 1 ? (
                       <>
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-foreground">Imagem do produto</h3>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                <div className="w-full sm:w-44">
+                  <div className="aspect-square w-full overflow-hidden rounded-md border bg-muted/30">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={productImagePreviewUrl ?? productImageUrl ?? "/images/noimage.png"}
+                      alt="Pré-visualização"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                </div>
+                <div
+                  className={cn(
+                    "flex min-h-44 flex-1 flex-col items-center justify-center rounded-md border-2 border-dashed p-4 text-center transition-colors sm:h-44 sm:min-h-0",
+                    isProductImageDragging ? "border-primary bg-primary/5" : "border-muted-foreground/25 bg-background",
+                    sheetReadOnly || uploadingProductImage || saving ? "opacity-70" : "hover:bg-muted/30",
+                  )}
+                  onDragEnter={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    if (!sheetReadOnly && !uploadingProductImage && !saving) setIsProductImageDragging(true)
+                  }}
+                  onDragOver={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                  }}
+                  onDragLeave={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    setIsProductImageDragging(false)
+                  }}
+                  onDrop={handleProductImageDrop}
+                >
+                  <p className="text-lg font-medium leading-tight text-muted-foreground/60 sm:text-xl">
+                    Arraste um arquivo para cá
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-muted-foreground/60">
+                    Ou, se preferir...
+                  </p>
+                  <div className="mt-1.5 flex flex-col items-center gap-1.5">
+                    <Label
+                      className={cn(
+                        "inline-flex cursor-pointer items-center rounded bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90",
+                        (sheetReadOnly || uploadingProductImage || saving) && "pointer-events-none opacity-60",
+                      )}
+                    >
+                      Selecionar um arquivo do seu dispositivo
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        className="sr-only"
+                        disabled={sheetReadOnly || uploadingProductImage || saving}
+                        onChange={(e) => {
+                          selectProductImageFile(e.target.files?.[0] ?? null)
+                        }}
+                      />
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-3 text-xs"
+                      disabled={sheetReadOnly || uploadingProductImage || saving || (!productImageFile && !productImageUrl)}
+                      onClick={() => {
+                        setProductImageFile(null)
+                        setProductImageUrl(null)
+                      }}
+                    >
+                      Remover
+                    </Button>
+                  </div>
+                  <p className="mt-1.5 max-w-md text-[10px] leading-snug text-muted-foreground">
+                    JPG, PNG ou WebP. Ao salvar, a imagem será enviada automaticamente para o produto.
+                  </p>
+                  {!editingId ? (
+                    <p className="text-[10px] leading-snug text-muted-foreground">
+                      Em novo produto, a imagem é enviada automaticamente após criar.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
                         <div className="grid gap-2 sm:grid-cols-2">
                           <div className="grid gap-2">
                             <Label>Referência</Label>
@@ -2445,7 +2550,7 @@ export default function AdminProdutosPage() {
                       <>
             <div className="grid gap-2 sm:grid-cols-2">
               <div className="grid gap-2">
-                <Label>Secção principal</Label>
+                <Label>Categoria principal</Label>
                 <Select
                   value={form.section_id.trim() === "" ? "__none__" : form.section_id}
                   onValueChange={(v) => setForm((f) => ({ ...f, section_id: v === "__none__" ? "" : v }))}
@@ -2496,7 +2601,7 @@ export default function AdminProdutosPage() {
               </div>
             </div>
             <div className="grid gap-2">
-              <Label className="text-muted-foreground">Secções adicionais (opcional)</Label>
+              <Label className="text-muted-foreground">Categorias adicionais (opcional)</Label>
               <div className="max-h-32 space-y-2 overflow-y-auto rounded-md border p-3">
                 {(meta?.sections ?? []).map((s) => (
                   <label key={s.id} className="flex cursor-pointer items-center gap-2 text-sm">
@@ -2804,55 +2909,6 @@ export default function AdminProdutosPage() {
                     ) : null}
                     {wizardStep === 5 ? (
                       <>
-                        <div className="space-y-2">
-                          <h3 className="text-sm font-semibold text-foreground">Imagem do produto</h3>
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-                            <div className="w-full sm:w-48">
-                              <div className="aspect-square w-full overflow-hidden rounded-md border bg-muted/30">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={productImagePreviewUrl ?? productImageUrl ?? "/images/noimage.png"}
-                                  alt="Pré-visualização"
-                                  className="h-full w-full object-cover"
-                                />
-                              </div>
-                            </div>
-                            <div className="flex-1 space-y-2">
-                              <p className="text-xs text-muted-foreground">
-                                Envie uma imagem (JPG/PNG/WebP). Ao enviar, substitui as imagens actuais do produto.
-                              </p>
-                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                                <Input
-                                  type="file"
-                                  accept="image/*"
-                                  disabled={sheetReadOnly || uploadingProductImage || saving}
-                                  onChange={(e) => {
-                                    const f = e.target.files && e.target.files[0] ? e.target.files[0] : null
-                                    setProductImageFile(f)
-                                  }}
-                                />
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={sheetReadOnly || uploadingProductImage || saving || (!productImageFile && !productImageUrl)}
-                                  onClick={() => {
-                                    setProductImageFile(null)
-                                    setProductImageUrl(null)
-                                  }}
-                                >
-                                  Remover
-                                </Button>
-                              </div>
-                              {!editingId ? (
-                                <p className="text-[11px] text-muted-foreground">
-                                  Em novo produto, a imagem é enviada automaticamente após criar.
-                                </p>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-
                         <dl className="grid gap-3 rounded-lg border bg-muted/40 p-4 text-sm sm:grid-cols-2">
                           <div>
                             <dt className="text-xs text-muted-foreground">Referência</dt>
@@ -2865,7 +2921,7 @@ export default function AdminProdutosPage() {
                             <dd className="font-medium">{form.commercial_name.trim() || "—"}</dd>
                           </div>
                           <div>
-                            <dt className="text-xs text-muted-foreground">Secção principal</dt>
+                            <dt className="text-xs text-muted-foreground">Categoria principal</dt>
                             <dd className="font-medium">
                               {form.section_id.trim() === ""
                                 ? "— Nenhuma —"

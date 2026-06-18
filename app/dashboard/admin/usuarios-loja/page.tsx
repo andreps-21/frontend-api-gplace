@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { apiService } from "@/lib/api"
-import { laravelInnerData } from "@/lib/laravel-data"
+import { laravelInnerData, laravelValidationErrorText } from "@/lib/laravel-data"
 import { useGplacePermissions } from "@/lib/use-gplace-permissions"
 import { AccessDenied } from "@/components/ui/access-denied"
 import { Button } from "@/components/ui/button"
@@ -10,11 +10,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Label } from "@/components/ui/label"
-import { Loader2, UserMinus, UserPlus } from "lucide-react"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import CitySearch from "@/components/ui/city-search"
+import { Loader2, Pencil, Plus, Trash2, UserMinus, UserPlus } from "lucide-react"
 import { PanelTableSkeleton } from "@/components/dashboard/panel-content-skeleton"
 import { toast } from "sonner"
 
 type Paginator<T> = { data: T[]; current_page: number; last_page: number; total: number }
+type RoleRow = { id: number; name: string; description?: string }
+type StoreRow = { id: number; name?: string; formal_name?: string }
 
 export default function UsuariosLojaGplacePage() {
   const { can } = useGplacePermissions()
@@ -25,6 +31,23 @@ export default function UsuariosLojaGplacePage() {
   const [paginator, setPaginator] = useState<Paginator<Record<string, unknown>> | null>(null)
   const [attachUserId, setAttachUserId] = useState("")
   const [attaching, setAttaching] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [roles, setRoles] = useState<RoleRow[]>([])
+  const [stores, setStores] = useState<StoreRow[]>([])
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [form, setForm] = useState({
+    name: "",
+    formal_name: "",
+    email: "",
+    phone: "",
+    nif: "",
+    city_id: "",
+    role_id: "",
+    store_ids: [] as number[],
+    password: "",
+    password_confirmation: "",
+  })
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -43,6 +66,21 @@ export default function UsuariosLojaGplacePage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    apiService.getAdminStoreRoles({ page: 1, per_page: 100 })
+      .then((raw) => {
+        const p = laravelInnerData<Paginator<RoleRow>>(raw)
+        setRoles(p.data ?? [])
+      })
+      .catch(() => setRoles([]))
+    apiService.getAdminStores({ page: 1, per_page: 100 })
+      .then((raw) => {
+        const p = laravelInnerData<Paginator<StoreRow>>(raw)
+        setStores(p.data ?? [])
+      })
+      .catch(() => setStores([]))
+  }, [])
 
   const attach = async () => {
     const id = Number.parseInt(attachUserId.trim(), 10)
@@ -76,6 +114,94 @@ export default function UsuariosLojaGplacePage() {
     }
   }
 
+  const openCreate = () => {
+    setForm({
+      name: "",
+      formal_name: "",
+      email: "",
+      phone: "",
+      nif: "",
+      city_id: "",
+      role_id: "",
+      store_ids: [],
+      password: "",
+      password_confirmation: "",
+    })
+    setEditingId(null)
+    setDialogOpen(true)
+  }
+
+  const openEdit = async (id: number) => {
+    setSaving(true)
+    try {
+      const raw = await apiService.getAdminStoreUser(id)
+      const user = laravelInnerData<Record<string, any>>(raw)
+      setEditingId(id)
+      setForm({
+        name: String(user.name ?? ""),
+        formal_name: String(user.formal_name ?? ""),
+        email: String(user.email ?? ""),
+        phone: String(user.phone ?? ""),
+        nif: String(user.nif ?? ""),
+        city_id: user.city_id != null ? String(user.city_id) : "",
+        role_id: user.roles?.[0]?.id != null ? String(user.roles[0].id) : "",
+        store_ids: Array.isArray(user.stores) ? user.stores.map((s: StoreRow) => Number(s.id)) : [],
+        password: "",
+        password_confirmation: "",
+      })
+      setDialogOpen(true)
+    } catch (e) {
+      console.error(e)
+      toast.error("Erro ao carregar utilizador.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveUser = async () => {
+    setSaving(true)
+    try {
+      const payload = {
+        ...form,
+        city_id: Number(form.city_id),
+        role_id: Number(form.role_id),
+        store_ids: form.store_ids,
+      }
+      if (editingId) {
+        await apiService.updateAdminStoreUser(editingId, payload)
+      } else {
+        await apiService.createAdminStoreUser(payload)
+      }
+      toast.success(editingId ? "Utilizador atualizado." : "Utilizador criado e associado à loja.")
+      setDialogOpen(false)
+      void load()
+    } catch (e) {
+      console.error(e)
+      toast.error(laravelValidationErrorText(e) ?? "Erro ao criar utilizador.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const deleteUser = async (id: number) => {
+    if (!confirm(`Remover utilizador ${id}? Se ele só estiver nestas lojas, será apagado.`)) return
+    try {
+      await apiService.deleteAdminStoreUser(id)
+      toast.success("Utilizador removido.")
+      void load()
+    } catch (e) {
+      console.error(e)
+      toast.error("Erro ao remover utilizador.")
+    }
+  }
+
+  const toggleStore = (id: number, checked: boolean) => {
+    setForm((f) => ({
+      ...f,
+      store_ids: checked ? Array.from(new Set([...f.store_ids, id])) : f.store_ids.filter((x) => x !== id),
+    }))
+  }
+
   if (!can("users_view")) {
     return <AccessDenied />
   }
@@ -91,8 +217,12 @@ export default function UsuariosLojaGplacePage() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Associar utilizador</CardTitle>
+          <Button type="button" onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Criar utilizador
+          </Button>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="grid flex-1 gap-1">
@@ -105,6 +235,54 @@ export default function UsuariosLojaGplacePage() {
           </Button>
         </CardContent>
       </Card>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>{editingId ? "Editar utilizador" : "Novo utilizador da loja"}</DialogTitle></DialogHeader>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-1"><Label>Nome</Label><Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></div>
+            <div className="grid gap-1"><Label>Nome formal</Label><Input value={form.formal_name} onChange={(e) => setForm((f) => ({ ...f, formal_name: e.target.value }))} /></div>
+            <div className="grid gap-1"><Label>E-mail</Label><Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></div>
+            <div className="grid gap-1"><Label>Telefone</Label><Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></div>
+            <div className="grid gap-1"><Label>NIF/CPF/CNPJ</Label><Input value={form.nif} onChange={(e) => setForm((f) => ({ ...f, nif: e.target.value }))} /></div>
+            <div className="grid gap-1">
+              <CitySearch
+                value={form.city_id ? `Cidade #${form.city_id}` : ""}
+                onCitySelect={(city) => setForm((f) => ({ ...f, city_id: String(city.id) }))}
+                onStateChange={() => undefined}
+                label="Cidade"
+                required
+              />
+            </div>
+            <div className="grid gap-1 sm:col-span-2">
+              <Label>Role</Label>
+              <Select value={form.role_id || undefined} onValueChange={(v) => setForm((f) => ({ ...f, role_id: v }))}>
+                <SelectTrigger><SelectValue placeholder="Selecione uma role" /></SelectTrigger>
+                <SelectContent>
+                  {roles.map((role) => <SelectItem key={role.id} value={String(role.id)}>{role.description || role.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1"><Label>Senha</Label><Input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} /></div>
+            <div className="grid gap-1"><Label>Confirmar senha</Label><Input type="password" value={form.password_confirmation} onChange={(e) => setForm((f) => ({ ...f, password_confirmation: e.target.value }))} /></div>
+            <div className="grid gap-2 sm:col-span-2">
+              <Label>Lojas vinculadas</Label>
+              <div className="grid max-h-40 gap-2 overflow-auto rounded-md border p-3 sm:grid-cols-2">
+                {stores.map((store) => (
+                  <label key={store.id} className="flex items-center gap-2 text-sm">
+                    <Checkbox checked={form.store_ids.includes(store.id)} onCheckedChange={(v) => toggleStore(store.id, Boolean(v))} />
+                    {store.name || store.formal_name || `Loja #${store.id}`}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={() => void saveUser()} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -135,7 +313,7 @@ export default function UsuariosLojaGplacePage() {
                     <TableHead>Nome</TableHead>
                     <TableHead>E-mail</TableHead>
                     <TableHead>NIF</TableHead>
-                    <TableHead className="w-[80px]">Loja</TableHead>
+                    <TableHead className="w-[120px]">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -146,8 +324,14 @@ export default function UsuariosLojaGplacePage() {
                       <TableCell>{String(row.email ?? "")}</TableCell>
                       <TableCell>{String(row.nif ?? "")}</TableCell>
                       <TableCell>
+                        <Button type="button" variant="ghost" size="icon" title="Editar" onClick={() => void openEdit(Number(row.id))}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                         <Button type="button" variant="ghost" size="icon" title="Remover desta loja" onClick={() => void detach(Number(row.id))}>
                           <UserMinus className="h-4 w-4 text-destructive" />
+                        </Button>
+                        <Button type="button" variant="ghost" size="icon" title="Apagar utilizador" onClick={() => void deleteUser(Number(row.id))}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </TableCell>
                     </TableRow>

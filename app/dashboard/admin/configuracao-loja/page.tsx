@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import CitySearch from "@/components/ui/city-search"
 import { Loader2 } from "lucide-react"
 import { PanelFormPageSkeleton } from "@/components/dashboard/panel-content-skeleton"
 import { toast } from "sonner"
@@ -48,11 +49,17 @@ const emptyForm = () => ({
   cookies: "",
 })
 
+const imageUrl = (value: unknown) => (typeof value === "string" && value.trim() ? value : null)
+
 export default function ConfiguracaoLojaGplacePage() {
   const { can } = useGplacePermissions()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(emptyForm)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoFooterFile, setLogoFooterFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [logoFooterPreview, setLogoFooterPreview] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -62,8 +69,16 @@ export default function ConfiguracaoLojaGplacePage() {
       const s = bundle.settings
       if (!s) {
         setForm(emptyForm())
+        setLogoFile(null)
+        setLogoFooterFile(null)
+        setLogoPreview(null)
+        setLogoFooterPreview(null)
         return
       }
+      setLogoFile(null)
+      setLogoFooterFile(null)
+      setLogoPreview(imageUrl(s.logo_url) ?? imageUrl(s.logo))
+      setLogoFooterPreview(imageUrl(s.logo_footer))
       setForm({
         name: String(s.name ?? ""),
         full_name: String(s.full_name ?? ""),
@@ -106,16 +121,44 @@ export default function ConfiguracaoLojaGplacePage() {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  const handleLogoChange = (type: "logo" | "logo_footer", file?: File | null) => {
+    if (!file) return
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecione um arquivo de imagem.")
+      return
+    }
+
+    const preview = URL.createObjectURL(file)
+    if (type === "logo") {
+      setLogoFile(file)
+      setLogoPreview(preview)
+    } else {
+      setLogoFooterFile(file)
+      setLogoFooterPreview(preview)
+    }
+  }
+
+  const buildPayload = () => {
+    const payload = new FormData()
+    Object.entries(form).forEach(([key, value]) => {
+      if (key === "city_id") {
+        payload.append(key, form.city_id === "" ? "0" : String(Number(form.city_id)))
+      } else if (key === "status") {
+        payload.append(key, String(Number(form.status)))
+      } else {
+        payload.append(key, String(value ?? ""))
+      }
+    })
+    if (logoFile) payload.append("logo", logoFile)
+    if (logoFooterFile) payload.append("logo_footer", logoFooterFile)
+    return payload
+  }
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
     try {
-      const payload: Record<string, unknown> = {
-        ...form,
-        city_id: form.city_id === "" ? 0 : Number(form.city_id),
-        status: Number(form.status),
-      }
-      await apiService.updateAdminStoreSettings(payload)
+      await apiService.updateAdminStoreSettings(buildPayload())
       toast.success("Configurações guardadas.")
       await load()
     } catch (err: unknown) {
@@ -139,8 +182,8 @@ export default function ConfiguracaoLojaGplacePage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div>
+    <div className="w-full space-y-6">
+      <div className="max-w-5xl">
         <h1 className="text-2xl font-semibold tracking-tight">Configuração da loja</h1>
         <p className="text-muted-foreground mt-1 text-sm">
           Primeira fase da migração do Blade <code className="text-xs">settings/edit</code>: campos principais (sem upload de logos no JSON; pode acrescentar depois com multipart).
@@ -148,13 +191,48 @@ export default function ConfiguracaoLojaGplacePage() {
       </div>
 
       <form onSubmit={onSubmit} className="space-y-6">
-        <Card>
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(420px,0.65fr)]">
+        <Card className="h-full">
           <CardHeader>
             <CardTitle>Perfil corporativo</CardTitle>
             <CardDescription>Dados da loja no escopo do header <code>app</code>.</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
+          <CardContent className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+            <div className="grid gap-4 md:col-span-2 md:grid-cols-2 2xl:col-span-3">
+              <div className="space-y-2">
+                <Label>Logo do topo</Label>
+                <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
+                  <div
+                    className="flex h-28 items-center justify-center rounded-lg border bg-muted bg-contain bg-center bg-no-repeat text-center text-xs text-muted-foreground"
+                    style={logoPreview ? { backgroundImage: `url(${logoPreview})` } : undefined}
+                  >
+                    {!logoPreview ? "Sem logo" : null}
+                  </div>
+                  <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground transition hover:bg-muted/50">
+                    <span className="font-medium text-foreground">Enviar logo do topo</span>
+                    <span className="mt-1">PNG, JPG, WEBP, GIF ou SVG até 5MB.</span>
+                    <Input accept="image/*" className="hidden" type="file" onChange={(e) => handleLogoChange("logo", e.target.files?.[0])} />
+                  </label>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Logo do rodapé</Label>
+                <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
+                  <div
+                    className="flex h-28 items-center justify-center rounded-lg border bg-muted bg-contain bg-center bg-no-repeat text-center text-xs text-muted-foreground"
+                    style={logoFooterPreview ? { backgroundImage: `url(${logoFooterPreview})` } : undefined}
+                  >
+                    {!logoFooterPreview ? "Sem logo" : null}
+                  </div>
+                  <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground transition hover:bg-muted/50">
+                    <span className="font-medium text-foreground">Enviar logo do rodapé</span>
+                    <span className="mt-1">PNG, JPG, WEBP, GIF ou SVG até 5MB.</span>
+                    <Input accept="image/*" className="hidden" type="file" onChange={(e) => handleLogoChange("logo_footer", e.target.files?.[0])} />
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2 md:col-span-2 2xl:col-span-3">
               <Label htmlFor="full_name">Razão social</Label>
               <Input id="full_name" value={form.full_name} onChange={(e) => update("full_name", e.target.value)} required />
             </div>
@@ -196,7 +274,7 @@ export default function ConfiguracaoLojaGplacePage() {
               <Label htmlFor="zip_code">CEP</Label>
               <Input id="zip_code" value={form.zip_code} onChange={(e) => update("zip_code", e.target.value)} required />
             </div>
-            <div className="space-y-2 sm:col-span-2">
+            <div className="space-y-2 md:col-span-2 2xl:col-span-3">
               <Label htmlFor="address">Endereço</Label>
               <Input id="address" value={form.address} onChange={(e) => update("address", e.target.value)} required />
             </div>
@@ -208,22 +286,20 @@ export default function ConfiguracaoLojaGplacePage() {
               <Label htmlFor="district">Bairro</Label>
               <Input id="district" value={form.district} onChange={(e) => update("district", e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="city_id">ID da cidade</Label>
-              <Input
-                id="city_id"
-                type="number"
-                value={form.city_id === "" ? "" : form.city_id}
-                onChange={(e) => update("city_id", e.target.value)}
+            <div className="space-y-2 md:col-span-2 2xl:col-span-1">
+              <CitySearch
+                value={form.city_id ? `Cidade #${form.city_id}` : ""}
+                onCitySelect={(city) => update("city_id", String(city.id))}
+                onStateChange={() => undefined}
+                label="Cidade"
                 required
               />
-              <p className="text-muted-foreground text-xs">Use o ID da tabela de cidades (próximo passo: pesquisa como no Blade).</p>
             </div>
-            <div className="space-y-2 sm:col-span-2">
+            <div className="space-y-2 md:col-span-2">
               <Label htmlFor="portal_url">URL do portal</Label>
               <Input id="portal_url" type="url" value={form.portal_url} onChange={(e) => update("portal_url", e.target.value)} required />
             </div>
-            <div className="space-y-2 sm:col-span-2">
+            <div className="space-y-2 2xl:col-span-1">
               <Label htmlFor="email_notification">E-mail de notificação</Label>
               <Input
                 id="email_notification"
@@ -241,16 +317,17 @@ export default function ConfiguracaoLojaGplacePage() {
               <Label htmlFor="contact">Contato (opcional)</Label>
               <Input id="contact" value={form.contact} onChange={(e) => update("contact", e.target.value)} />
             </div>
-            <div className="space-y-2 sm:col-span-2">
+            <div className="space-y-2 md:col-span-2 2xl:col-span-3">
               <Label htmlFor="note">Observação</Label>
               <Input id="note" value={form.note} onChange={(e) => update("note", e.target.value)} />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="h-full">
           <CardHeader>
             <CardTitle>Textos legais e SEO</CardTitle>
+            <CardDescription>Conteúdos exibidos no ecommerce e tags de rastreamento.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="space-y-2">
@@ -285,8 +362,9 @@ export default function ConfiguracaoLojaGplacePage() {
             </div>
           </CardContent>
         </Card>
+        </div>
 
-        <div className="flex justify-end gap-2">
+        <div className="sticky bottom-0 z-10 flex justify-end gap-2 border-t bg-background/95 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/75">
           <Button type="button" variant="outline" onClick={() => void load()} disabled={saving}>
             Recarregar
           </Button>

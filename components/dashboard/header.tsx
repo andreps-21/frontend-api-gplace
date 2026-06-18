@@ -19,6 +19,8 @@ import { PasswordChangeModal } from "@/components/auth/password-change-modal"
 import { usePermissions } from "@/lib/use-permissions"
 import { apiService, type HeaderNotificationItem, PROD_API_PUBLIC_ORIGIN } from "@/lib/api"
 import { isUiPreview } from "@/lib/ui-preview"
+import { getResolvedAppToken, getSelectedAppToken, setSelectedAppToken } from "@/lib/public-env"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export function DashboardHeader({
   isMobile = false,
@@ -31,6 +33,7 @@ export function DashboardHeader({
   const { user, logout, isLoading: authLoading } = useAuth()
   const { userRole } = usePermissions()
   const [showPasswordChange, setShowPasswordChange] = useState(false)
+  const [selectedStoreToken, setSelectedStoreTokenState] = useState("")
   const [apiStatus, setApiStatus] = useState<{
     type: 'local' | 'cloud' | 'unknown'
     url: string
@@ -115,6 +118,10 @@ export function DashboardHeader({
   }, [authLoading, loadHeaderNotifications])
 
   useEffect(() => {
+    setSelectedStoreTokenState(getSelectedAppToken() || getResolvedAppToken())
+  }, [user?.id])
+
+  useEffect(() => {
     const t = window.setInterval(() => {
       if (!authLoading) void loadHeaderNotifications()
     }, 5 * 60 * 1000)
@@ -157,6 +164,15 @@ export function DashboardHeader({
       'administrador': 'bg-orange-500'
     }
     return roleColors[userRole] || 'bg-gray-500'
+  }
+
+  const userStores = user?.stores ?? []
+  const storesWithToken = userStores.filter((store) => typeof store.app_token === "string" && store.app_token.trim().length > 0)
+
+  const changeStore = (token: string) => {
+    setSelectedStoreToken(token)
+    setSelectedStoreTokenState(token)
+    window.location.reload()
   }
 
   return (
@@ -204,6 +220,24 @@ export function DashboardHeader({
       </div>
 
       <div className="flex items-center gap-3">
+        {storesWithToken.length > 1 ? (
+          <Select value={selectedStoreToken || undefined} onValueChange={changeStore}>
+            <SelectTrigger className="hidden h-9 w-[210px] md:flex">
+              <SelectValue placeholder="Selecionar loja" />
+            </SelectTrigger>
+            <SelectContent align="end">
+              {storesWithToken.map((store) => {
+                const label = store.name || store.formal_name || `Loja #${store.id}`
+                return (
+                  <SelectItem key={store.id} value={store.app_token!}>
+                    {label}
+                  </SelectItem>
+                )
+              })}
+            </SelectContent>
+          </Select>
+        ) : null}
+
         <DropdownMenu onOpenChange={(open) => open && loadHeaderNotifications()}>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative" aria-label="Notificações">
@@ -316,6 +350,9 @@ export function DashboardHeader({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard/conta/perfil">Perfil</Link>
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setShowPasswordChange(true)}>
               <KeyRound className="w-4 h-4 mr-2" />
               Alterar Senha

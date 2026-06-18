@@ -15,10 +15,22 @@ function userHasContratanteTitularRole(user: User | null | undefined): boolean {
 }
 
 /**
- * Permissões dos grupos Operacionais, Vendas e Relatórios no menu Gplace.
- * Titular contratante: mostrar estes itens mesmo que o pivot Spatie ainda não as inclua (alinhado ao pedido de UX).
+ * Fallback visual para titular contratante quando o perfil local ainda não trouxe `permissions`.
+ * Quando a API retorna permissões Spatie, a lista real do papel prevalece.
  */
 const TITULAR_CONTRATANTE_MENU_PERMS = new Set<string>([
+  "customers_view",
+  "leads_view",
+  "tenants_view",
+  "stores_view",
+  "salesman_view",
+  "coupons_view",
+  "businessunits_view",
+  "payment-methods_view",
+  "erp_view",
+  "social-medias_view",
+  "cities_view",
+  "states_view",
   "products_view",
   "sections_view",
   "measurement-units_view",
@@ -31,6 +43,14 @@ const TITULAR_CONTRATANTE_MENU_PERMS = new Set<string>([
   "orders_view",
   "product_report_view",
   "order_report_view",
+  "users_view",
+  "roles_view",
+  "permissions_view",
+  "parameters_view",
+  "faq_view",
+  "catalogs_view",
+  "settings_edit",
+  "tokens_view",
 ])
 
 /**
@@ -71,10 +91,11 @@ export function useGplacePermissions() {
   const can = (permission: string): boolean => {
     if (!permission) return true
     if (legacyFullGplace) return true
-    if (isTitularContratante && TITULAR_CONTRATANTE_MENU_PERMS.has(permission)) {
+    if (set.has(permission)) return true
+    if (isTitularContratante && spatieNames.length === 0 && TITULAR_CONTRATANTE_MENU_PERMS.has(permission)) {
       return true
     }
-    return set.has(permission)
+    return false
   }
 
   const canAny = (perms?: string[]): boolean => {

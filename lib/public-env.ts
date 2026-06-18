@@ -9,6 +9,32 @@ export const DEV_LOCAL_APP_TOKEN = 'gplace-local-frontend'
  */
 export const PUBLIC_APP_TOKEN = (process.env.NEXT_PUBLIC_APP_TOKEN || '').trim()
 
+export const SELECTED_APP_TOKEN_KEY = 'gplace_selected_app_token'
+
+export function getSelectedAppToken(): string {
+  if (typeof window === 'undefined') return ''
+  try {
+    return (localStorage.getItem(SELECTED_APP_TOKEN_KEY) || '').trim()
+  } catch {
+    return ''
+  }
+}
+
+export function setSelectedAppToken(token: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    const value = token.trim()
+    if (value) {
+      localStorage.setItem(SELECTED_APP_TOKEN_KEY, value)
+    } else {
+      localStorage.removeItem(SELECTED_APP_TOKEN_KEY)
+    }
+    window.dispatchEvent(new CustomEvent('gplace:app-token-change', { detail: { token: value } }))
+  } catch {
+    // Ignora storage indisponível.
+  }
+}
+
 /** URL da API no build — se apontar para loopback, podemos usar o token de dev sem NEXT_PUBLIC_APP_TOKEN. */
 function envPointsToLocalApi(): boolean {
   const raw =
@@ -23,6 +49,10 @@ function envPointsToLocalApi(): boolean {
  * (hostname do browser OU URL da API em .env a apontar para localhost).
  */
 export function getResolvedAppToken(): string {
+  const selected = getSelectedAppToken()
+  if (selected.length > 0) {
+    return selected
+  }
   if (PUBLIC_APP_TOKEN.length > 0) {
     return PUBLIC_APP_TOKEN
   }

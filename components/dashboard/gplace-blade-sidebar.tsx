@@ -16,7 +16,6 @@ import {
   Users,
   Store,
   Tags,
-  Percent,
   Settings,
   ShieldCheck,
   BarChart3,
@@ -28,6 +27,14 @@ import {
   SlidersHorizontal,
   KeyRound,
   BadgePercent,
+  BriefcaseBusiness,
+  CreditCard,
+  Database,
+  Share2,
+  MapPin,
+  Map,
+  Warehouse,
+  CircleHelp,
 } from "lucide-react"
 
 function iconForHref(href: string) {
@@ -43,16 +50,25 @@ function iconForHref(href: string) {
       return FileText
     case "/dashboard/admin/produtos":
       return Package
+    case "/dashboard/admin/estoque":
+      return Warehouse
+    case "/dashboard/admin/categorias":
+      return Tags
     case "/dashboard/admin/secoes":
       return Tags
+    case "/dashboard/admin/grades-produto":
     case "/dashboard/admin/pendente/grid":
       return Grid3X3
     case "/dashboard/admin/marcas":
       return Tags
     case "/dashboard/admin/unidades-medida":
       return Ruler
+    case "/dashboard/admin/regras-frete":
     case "/dashboard/admin/pendente/freights":
       return Truck
+    case "/dashboard/admin/banners":
+    case "/dashboard/admin/tamanhos-midia":
+    case "/dashboard/admin/posicoes-interface":
     case "/dashboard/admin/pendente/banners":
     case "/dashboard/admin/pendente/size-image":
     case "/dashboard/admin/pendente/interface-positions":
@@ -64,10 +80,22 @@ function iconForHref(href: string) {
     case "/dashboard/admin/tenant":
     case "/dashboard/admin/lojas":
       return Store
+    case "/dashboard/admin/cupons":
     case "/dashboard/admin/pendente/coupons":
       return BadgePercent
+    case "/dashboard/admin/unidades-negocio":
+      return BriefcaseBusiness
+    case "/dashboard/admin/formas-pagamento":
     case "/dashboard/admin/pendente/payment-methods":
-      return Percent
+      return CreditCard
+    case "/dashboard/admin/erp":
+      return Database
+    case "/dashboard/admin/redes-sociais":
+      return Share2
+    case "/dashboard/admin/cidades":
+      return MapPin
+    case "/dashboard/admin/estados":
+      return Map
     case "/dashboard/admin/pendente/relatorio-produtos":
     case "/dashboard/admin/pendente/relatorio-pedidos":
       return BarChart3
@@ -76,6 +104,8 @@ function iconForHref(href: string) {
     case "/dashboard/admin/atribuicoes":
     case "/dashboard/admin/permissoes":
       return ShieldCheck
+    case "/dashboard/admin/faq":
+      return CircleHelp
     case "/dashboard/admin/parametros":
     case "/dashboard/admin/configuracao-loja":
       return Settings

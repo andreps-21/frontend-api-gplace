@@ -32,7 +32,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AlertTriangle, ChevronLeft, ChevronRight, Loader2, Mail, Pencil, Plus, Search, Store, Trash2 } from "lucide-react"
+import { AlertTriangle, ChevronLeft, ChevronRight, Copy, Loader2, Mail, Pencil, Plus, Search, Store, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { maskCpfCnpj, maskPhone, unmaskDocument, unmaskPhone } from "@/lib/masks"
 
@@ -50,6 +50,16 @@ function tenantPersonName(row: Record<string, unknown>): string {
   if (!tenant) return ""
   const people = tenant.people as Record<string, unknown> | undefined
   return people?.name ? String(people.name) : ""
+}
+
+function storeToken(row: Record<string, unknown>): string {
+  return String(row.app_token ?? row.token ?? "").trim()
+}
+
+function maskToken(token: string): string {
+  if (!token) return "—"
+  if (token.length <= 10) return token
+  return `${token.slice(0, 10)}...`
 }
 
 const STORE_STATUS_LABEL: Record<string, string> = {
@@ -77,6 +87,7 @@ function StoresListSkeleton({ rowCount = 8 }: { rowCount?: number }) {
                 <TableHead className="min-w-[72px]">ID</TableHead>
                 <TableHead className="min-w-[200px]">Loja</TableHead>
                 <TableHead className="min-w-[140px] whitespace-nowrap">CNPJ</TableHead>
+                <TableHead className="min-w-[160px]">Token</TableHead>
                 <TableHead className="min-w-[180px]">Titular</TableHead>
                 <TableHead className="min-w-[120px]">Situação</TableHead>
                 <TableHead className="min-w-[120px] text-right">Acções</TableHead>
@@ -93,6 +104,9 @@ function StoresListSkeleton({ rowCount = 8 }: { rowCount?: number }) {
                   </TableCell>
                   <TableCell className="py-3">
                     <Skeleton className="h-4 w-[120px]" />
+                  </TableCell>
+                  <TableCell className="py-3">
+                    <Skeleton className="h-4 w-[110px]" />
                   </TableCell>
                   <TableCell className="py-3">
                     <Skeleton className="h-4 w-[160px] max-w-full" />
@@ -336,6 +350,16 @@ export default function AdminLojasPage() {
     setPaymentSel((prev) => (checked ? [...prev, id] : prev.filter((x) => x !== id)))
   }
 
+  const copyToken = async (token: string) => {
+    if (!token) return
+    try {
+      await navigator.clipboard.writeText(token)
+      toast.success("Token copiado.")
+    } catch {
+      toast.error("Não foi possível copiar o token.")
+    }
+  }
+
   const save = async () => {
     if (!cityId) {
       toast.error("Seleccione estado e cidade.")
@@ -464,6 +488,7 @@ export default function AdminLojasPage() {
                   <TableHead className="min-w-[72px]">ID</TableHead>
                   <TableHead className="min-w-[200px]">Loja</TableHead>
                   <TableHead className="min-w-[140px] whitespace-nowrap">CNPJ</TableHead>
+                  <TableHead className="min-w-[160px]">Token</TableHead>
                   <TableHead className="min-w-[180px]">Titular</TableHead>
                   <TableHead className="min-w-[120px]">Situação</TableHead>
                   <TableHead className="min-w-[120px] text-right">Acções</TableHead>
@@ -472,6 +497,7 @@ export default function AdminLojasPage() {
               <TableBody>
                 {rows.map((row) => {
                   const st = String(row.status ?? "")
+                  const token = storeToken(row)
                   return (
                     <TableRow key={String(row.id)}>
                       <TableCell className="py-2 tabular-nums text-muted-foreground">{String(row.id)}</TableCell>
@@ -480,6 +506,23 @@ export default function AdminLojasPage() {
                       </TableCell>
                       <TableCell className="py-2 text-sm tabular-nums text-muted-foreground">
                         {maskCpfCnpj(String(row.nif ?? ""))}
+                      </TableCell>
+                      <TableCell className="py-2">
+                        {token ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 font-mono text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => void copyToken(token)}
+                            title="Copiar token"
+                          >
+                            <Copy className="mr-1 h-3.5 w-3.5" />
+                            {maskToken(token)}
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="py-2 text-sm text-muted-foreground">{tenantPersonName(row) || "—"}</TableCell>
                       <TableCell className="py-2">
@@ -529,6 +572,7 @@ export default function AdminLojasPage() {
           {rows.map((row) => {
             const st = String(row.status ?? "")
             const email = row.email != null ? String(row.email) : ""
+            const token = storeToken(row)
             return (
               <Card key={String(row.id)} className="p-4">
                 <div className="space-y-3">
@@ -548,6 +592,23 @@ export default function AdminLojasPage() {
                     <dt className="text-xs text-muted-foreground">CNPJ</dt>
                     <dd className="m-0 font-mono text-xs text-muted-foreground">
                       {row.nif != null && String(row.nif).trim() !== "" ? maskCpfCnpj(String(row.nif)) : "—"}
+                    </dd>
+                    <dt className="text-xs text-muted-foreground">Token</dt>
+                    <dd className="m-0">
+                      {token ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-0 font-mono text-xs text-muted-foreground"
+                          onClick={() => void copyToken(token)}
+                        >
+                          <Copy className="mr-1 h-3 w-3" />
+                          {maskToken(token)}
+                        </Button>
+                      ) : (
+                        "—"
+                      )}
                     </dd>
                     <dt className="text-xs text-muted-foreground">Titular</dt>
                     <dd className="m-0 text-muted-foreground">{tenantPersonName(row) || "—"}</dd>

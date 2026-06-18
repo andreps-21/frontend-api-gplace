@@ -5,6 +5,8 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { ProtectedRoute } from "@/components/auth/protected-route"
 import { useEffect, useState } from "react"
+import { useAuth } from "@/lib/auth"
+import { usePathname, useRouter } from "next/navigation"
 
 export default function DashboardLayout({
   children,
@@ -13,6 +15,9 @@ export default function DashboardLayout({
 }) {
   const [isMobile, setIsMobile] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const { user, isAuthenticated, isLoading } = useAuth()
+  const pathname = usePathname()
+  const router = useRouter()
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -25,6 +30,13 @@ export default function DashboardLayout({
     window.addEventListener("resize", apply)
     return () => window.removeEventListener("resize", apply)
   }, [])
+
+  useEffect(() => {
+    if (isLoading || !isAuthenticated) return
+    if (!user?.requires_first_password) return
+    if (pathname === "/dashboard/conta/primeira-senha") return
+    router.replace("/dashboard/conta/primeira-senha")
+  }, [isAuthenticated, isLoading, pathname, router, user?.requires_first_password])
 
   return (
     <ProtectedRoute>
