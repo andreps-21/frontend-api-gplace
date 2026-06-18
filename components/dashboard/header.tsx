@@ -170,7 +170,7 @@ export function DashboardHeader({
   const storesWithToken = userStores.filter((store) => typeof store.app_token === "string" && store.app_token.trim().length > 0)
 
   const changeStore = (token: string) => {
-    setSelectedStoreToken(token)
+    setSelectedAppToken(token)
     setSelectedStoreTokenState(token)
     window.location.reload()
   }
