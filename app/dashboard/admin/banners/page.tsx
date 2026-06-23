@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { formatInterfacePositionLabel, getInterfacePositionMeta } from "@/lib/interface-position-labels"
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import { PanelTableSkeleton } from "@/components/dashboard/panel-content-skeleton"
 import { toast } from "sonner"
@@ -26,6 +27,12 @@ const emptyForm = { name: "", url: "", is_enabled: "1", type: "1", sequence: "1"
 
 function placementKey(sizeImageId: number, interfacePositionId: number) {
   return `${sizeImageId}:${interfacePositionId}`
+}
+
+function bannerPositionLabels(row: BannerRow) {
+  return (row.size_images ?? [])
+    .map((sizeImage) => sizeImage.pivot?.interface_position ? formatInterfacePositionLabel(sizeImage.pivot.interface_position) : sizeImage.name)
+    .join(", ") || "-"
 }
 
 export default function AdminBannersPage() {
@@ -142,10 +149,10 @@ export default function AdminBannersPage() {
   return (
     <div className="space-y-6 p-6">
       <div className="flex justify-between gap-3">
-        <div><h1 className="text-2xl font-semibold tracking-tight">Mídias / anúncios</h1><p className="text-muted-foreground mt-1 text-sm">Banners exibidos na home do ecommerce por posição da interface.</p></div>
+        <div><h1 className="text-2xl font-semibold tracking-tight">Mídias / anúncios</h1><p className="text-muted-foreground mt-1 text-sm">Banners exibidos na home por local: topo, bloco superior e bloco inferior.</p></div>
         {mayCreate ? <Button onClick={() => open()}><Plus className="mr-2 h-4 w-4" />Novo banner</Button> : null}
       </div>
-      <Card><CardHeader><CardTitle>Listagem</CardTitle></CardHeader><CardContent>{loading ? <PanelTableSkeleton rows={8} columns={7} /> : <Table><TableHeader><TableRow><TableHead>Imagem</TableHead><TableHead>Nome</TableHead><TableHead>Posições</TableHead><TableHead>Ordem</TableHead><TableHead>Ativo</TableHead>{mayEdit || mayDelete ? <TableHead className="text-right">Ações</TableHead> : null}</TableRow></TableHeader><TableBody>{rows.map((row) => <TableRow key={row.id}><TableCell>{row.image_url ? <div className="h-14 w-24 rounded border bg-cover bg-center" style={{ backgroundImage: `url(${row.image_url})` }} /> : "Sem imagem"}</TableCell><TableCell className="font-medium">{row.name}</TableCell><TableCell>{(row.size_images ?? []).map((s) => s.pivot?.interface_position ? `${s.pivot.interface_position.id_position} - ${s.pivot.interface_position.position_name}` : s.name).join(", ") || "-"}</TableCell><TableCell>{row.sequence}</TableCell><TableCell>{Number(row.is_enabled ?? 0) ? "Sim" : "Não"}</TableCell>{mayEdit || mayDelete ? <TableCell className="text-right">{mayEdit ? <Button variant="ghost" size="icon" onClick={() => open(row)}><Pencil className="h-4 w-4" /></Button> : null}{mayDelete ? <Button variant="ghost" size="icon" onClick={() => void remove(row)}><Trash2 className="h-4 w-4 text-destructive" /></Button> : null}</TableCell> : null}</TableRow>)}</TableBody></Table>}</CardContent></Card>
+      <Card><CardHeader><CardTitle>Listagem</CardTitle></CardHeader><CardContent>{loading ? <PanelTableSkeleton rows={8} columns={7} /> : <Table><TableHeader><TableRow><TableHead>Imagem</TableHead><TableHead>Nome</TableHead><TableHead>Local na home</TableHead><TableHead>Ordem</TableHead><TableHead>Ativo</TableHead>{mayEdit || mayDelete ? <TableHead className="text-right">Ações</TableHead> : null}</TableRow></TableHeader><TableBody>{rows.map((row) => <TableRow key={row.id}><TableCell>{row.image_url ? <div className="h-14 w-24 rounded border bg-cover bg-center" style={{ backgroundImage: `url(${row.image_url})` }} /> : "Sem imagem"}</TableCell><TableCell className="font-medium">{row.name}</TableCell><TableCell>{bannerPositionLabels(row)}</TableCell><TableCell>{row.sequence}</TableCell><TableCell>{Number(row.is_enabled ?? 0) ? "Sim" : "Não"}</TableCell>{mayEdit || mayDelete ? <TableCell className="text-right">{mayEdit ? <Button variant="ghost" size="icon" onClick={() => open(row)}><Pencil className="h-4 w-4" /></Button> : null}{mayDelete ? <Button variant="ghost" size="icon" onClick={() => void remove(row)}><Trash2 className="h-4 w-4 text-destructive" /></Button> : null}</TableCell> : null}</TableRow>)}</TableBody></Table>}</CardContent></Card>
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader><DialogTitle>{editing ? "Editar banner" : "Novo banner"}</DialogTitle></DialogHeader>
@@ -158,7 +165,7 @@ export default function AdminBannersPage() {
               <div className="grid gap-1"><Label>Ordem</Label><Input type="number" value={form.sequence} onChange={(e) => setForm((f) => ({ ...f, sequence: e.target.value }))} /></div>
               <div className="grid gap-1"><Label>Ativo</Label><Select value={form.is_enabled} onValueChange={(v) => setForm((f) => ({ ...f, is_enabled: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">Sim</SelectItem><SelectItem value="0">Não</SelectItem></SelectContent></Select></div>
             </div>
-            <div className="grid gap-2"><Label>Posições/tamanhos</Label><div className="grid max-h-64 gap-2 overflow-auto rounded-md border p-3 sm:grid-cols-2">{options.placements.map((placement) => { const key = placementKey(placement.size_image_id, placement.interface_position_id); return <label className="flex items-start gap-2 text-sm" key={key}><Checkbox checked={form.placements.includes(key)} onCheckedChange={(checked) => togglePlacement(key, checked === true)} /><span>{placement.id_position} - {placement.position_name}<br /><span className="text-muted-foreground">{placement.size_image_name} ({placement.size_width}x{placement.size_height})</span></span></label> })}</div></div>
+            <div className="grid gap-2"><Label>Local na home e tamanho</Label><div className="grid max-h-64 gap-2 overflow-auto rounded-md border p-3 sm:grid-cols-2">{options.placements.map((placement) => { const key = placementKey(placement.size_image_id, placement.interface_position_id); const meta = getInterfacePositionMeta(placement); return <label className="flex items-start gap-2 text-sm" key={key}><Checkbox checked={form.placements.includes(key)} onCheckedChange={(checked) => togglePlacement(key, checked === true)} /><span>{meta.code} - {meta.title}<br /><span className="text-muted-foreground">{placement.size_image_name} ({placement.size_width}x{placement.size_height}) · {meta.layout}</span></span></label> })}</div></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button><Button onClick={() => void save()} disabled={saving || (editing ? !mayEdit : !mayCreate)}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}</Button></DialogFooter>
         </DialogContent>

@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { apiService } from "@/lib/api"
-import { laravelInnerData } from "@/lib/laravel-data"
+import { laravelInnerData, laravelValidationErrorText } from "@/lib/laravel-data"
 import { useGplacePermissions } from "@/lib/use-gplace-permissions"
 import { AccessDenied } from "@/components/ui/access-denied"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   Dialog,
@@ -35,7 +36,17 @@ type ParameterRow = {
   type?: number
   value?: string
   description?: string
+  created_at?: string
+  updated_at?: string
 }
+
+const PARAMETER_TYPES: Record<string, string> = {
+  "1": "Alfanumérico",
+  "2": "Numérico",
+  "3": "Lógico",
+}
+
+const dateValue = (value?: string) => value ? new Date(value).toLocaleDateString("pt-BR") : "-"
 
 export default function ParametrosGplacePage() {
   const { can } = useGplacePermissions()
@@ -102,7 +113,7 @@ export default function ParametrosGplacePage() {
       void load()
     } catch (e: unknown) {
       console.error(e)
-      toast.error("Erro ao guardar.")
+      toast.error(laravelValidationErrorText(e) ?? "Erro ao guardar.")
     } finally {
       setSaving(false)
     }
@@ -123,12 +134,15 @@ export default function ParametrosGplacePage() {
   if (!can("parameters_view")) {
     return <AccessDenied />
   }
+  const mayCreate = can("parameters_create")
+  const mayEdit = can("parameters_edit")
+  const mayDelete = can("parameters_delete")
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Parâmetros</h1>
-        <p className="text-muted-foreground mt-1 text-sm">CRUD alinhado ao Blade <code className="text-xs">parameters</code>.</p>
+        <p className="text-muted-foreground mt-1 text-sm">Parâmetros globais usados pela API e pelo ecommerce. Edite com cuidado.</p>
       </div>
 
       <Card>
@@ -138,10 +152,12 @@ export default function ParametrosGplacePage() {
             <Button type="button" variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Atualizar"}
             </Button>
-            <Button type="button" size="sm" onClick={openCreate}>
-              <Plus className="mr-1 h-4 w-4" />
-              Novo
-            </Button>
+            {mayCreate ? (
+              <Button type="button" size="sm" onClick={openCreate}>
+                <Plus className="mr-1 h-4 w-4" />
+                Novo
+              </Button>
+            ) : null}
           </div>
         </CardHeader>
         <CardContent>
@@ -157,7 +173,9 @@ export default function ParametrosGplacePage() {
                     <TableHead>Tipo</TableHead>
                     <TableHead>Valor</TableHead>
                     <TableHead>Descrição</TableHead>
-                    <TableHead className="w-[120px]">Acções</TableHead>
+                    <TableHead>Criação</TableHead>
+                    <TableHead>Atualização</TableHead>
+                    {mayEdit || mayDelete ? <TableHead className="w-[120px]">Ações</TableHead> : null}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -165,19 +183,27 @@ export default function ParametrosGplacePage() {
                     <TableRow key={row.id}>
                       <TableCell>{row.id}</TableCell>
                       <TableCell className="font-medium">{row.name}</TableCell>
-                      <TableCell>{row.type}</TableCell>
+                      <TableCell>{PARAMETER_TYPES[String(row.type ?? "")] ?? row.type}</TableCell>
                       <TableCell className="max-w-[200px] truncate">{row.value}</TableCell>
                       <TableCell className="max-w-xs truncate text-muted-foreground">{row.description}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button type="button" variant="ghost" size="icon" onClick={() => openEdit(row)} title="Editar">
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button type="button" variant="ghost" size="icon" onClick={() => void remove(row)} title="Eliminar">
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
+                      <TableCell>{dateValue(row.created_at)}</TableCell>
+                      <TableCell>{dateValue(row.updated_at)}</TableCell>
+                      {mayEdit || mayDelete ? (
+                        <TableCell>
+                          <div className="flex gap-1">
+                            {mayEdit ? (
+                              <Button type="button" variant="ghost" size="icon" onClick={() => openEdit(row)} title="Editar">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            ) : null}
+                            {mayDelete ? (
+                              <Button type="button" variant="ghost" size="icon" onClick={() => void remove(row)} title="Eliminar">
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                      ) : null}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -221,11 +247,42 @@ export default function ParametrosGplacePage() {
             </div>
             <div className="grid gap-1">
               <Label htmlFor="p-type">Tipo</Label>
-              <Input id="p-type" value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} />
+              <Select value={form.type} onValueChange={(value) => setForm((f) => ({ ...f, type: value, value: "" }))}>
+                <SelectTrigger id="p-type">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(PARAMETER_TYPES).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-1">
               <Label htmlFor="p-value">Valor</Label>
-              <Input id="p-value" value={form.value} onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))} maxLength={250} />
+              {form.type === "3" ? (
+                <Select value={form.value} onValueChange={(value) => setForm((f) => ({ ...f, value }))}>
+                  <SelectTrigger id="p-value">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Sim</SelectItem>
+                    <SelectItem value="0">Não</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="p-value"
+                  inputMode={form.type === "2" ? "numeric" : undefined}
+                  pattern={form.type === "2" ? "[0-9]*" : undefined}
+                  value={form.value}
+                  onChange={(e) => {
+                    const value = form.type === "2" ? e.target.value.replace(/\D/g, "") : e.target.value
+                    setForm((f) => ({ ...f, value }))
+                  }}
+                  maxLength={250}
+                />
+              )}
             </div>
             <div className="grid gap-1">
               <Label htmlFor="p-desc">Descrição</Label>
@@ -236,7 +293,7 @@ export default function ParametrosGplacePage() {
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button type="button" onClick={() => void save()} disabled={saving || !form.name.trim() || !form.value.trim()}>
+            <Button type="button" onClick={() => void save()} disabled={saving || (editing ? !mayEdit : !mayCreate) || !form.name.trim() || !form.value.trim()}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar"}
             </Button>
           </DialogFooter>

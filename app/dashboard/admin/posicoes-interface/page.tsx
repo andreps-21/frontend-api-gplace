@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { getInterfacePositionMeta } from "@/lib/interface-position-labels"
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import { PanelTableSkeleton } from "@/components/dashboard/panel-content-skeleton"
 import { toast } from "sonner"
@@ -88,24 +89,31 @@ export default function AdminPosicoesInterfacePage() {
     }
   }
 
+  const formMeta = getInterfacePositionMeta(form)
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Posição na interface</h1>
-          <p className="text-muted-foreground mt-1 text-sm">Posições usadas para encaixar banners na home do ecommerce.</p>
+          <p className="text-muted-foreground mt-1 text-sm">Slots usados pelo ecommerce para decidir onde cada banner aparece na home.</p>
         </div>
         {mayCreate ? <Button onClick={() => open()}><Plus className="mr-2 h-4 w-4" />Nova posição</Button> : null}
       </div>
       <Card>
         <CardHeader><CardTitle>Listagem</CardTitle></CardHeader>
-        <CardContent>{loading ? <PanelTableSkeleton rows={8} columns={4} /> : <Table><TableHeader><TableRow><TableHead>Código</TableHead><TableHead>Nome</TableHead><TableHead>Ativa</TableHead>{mayEdit || mayDelete ? <TableHead className="text-right">Ações</TableHead> : null}</TableRow></TableHeader><TableBody>{rows.map((row) => <TableRow key={row.id}><TableCell>{row.id_position}</TableCell><TableCell className="font-medium">{row.position_name}</TableCell><TableCell>{Number(row.is_enabled ?? 0) ? "Sim" : "Não"}</TableCell>{mayEdit || mayDelete ? <TableCell className="text-right">{mayEdit ? <Button variant="ghost" size="icon" onClick={() => open(row)}><Pencil className="h-4 w-4" /></Button> : null}{mayDelete ? <Button variant="ghost" size="icon" onClick={() => void remove(row)}><Trash2 className="h-4 w-4 text-destructive" /></Button> : null}</TableCell> : null}</TableRow>)}</TableBody></Table>}</CardContent>
+        <CardContent>{loading ? <PanelTableSkeleton rows={8} columns={5} /> : <Table><TableHeader><TableRow><TableHead>Código</TableHead><TableHead>Local na home</TableHead><TableHead>Layout</TableHead><TableHead>Ativa</TableHead>{mayEdit || mayDelete ? <TableHead className="text-right">Ações</TableHead> : null}</TableRow></TableHeader><TableBody>{rows.map((row) => { const meta = getInterfacePositionMeta(row); return <TableRow key={row.id}><TableCell>{meta.code}</TableCell><TableCell><div className="font-medium">{meta.title}</div><div className="text-xs text-muted-foreground">{meta.description}</div></TableCell><TableCell>{meta.layout}</TableCell><TableCell>{Number(row.is_enabled ?? 0) ? "Sim" : "Não"}</TableCell>{mayEdit || mayDelete ? <TableCell className="text-right">{mayEdit ? <Button variant="ghost" size="icon" onClick={() => open(row)}><Pencil className="h-4 w-4" /></Button> : null}{mayDelete ? <Button variant="ghost" size="icon" onClick={() => void remove(row)}><Trash2 className="h-4 w-4 text-destructive" /></Button> : null}</TableCell> : null}</TableRow> })}</TableBody></Table>}</CardContent>
       </Card>
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editing ? "Editar posição" : "Nova posição"}</DialogTitle></DialogHeader>
           <div className="grid gap-3">
             <div className="grid gap-1"><Label>Código</Label><Input placeholder="001" value={form.id_position} onChange={(e) => setForm((f) => ({ ...f, id_position: e.target.value }))} /></div>
+            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+              <p className="font-medium">{formMeta.title}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{formMeta.description}</p>
+              <p className="mt-2 text-xs text-muted-foreground">Layout esperado: {formMeta.layout}</p>
+            </div>
             <div className="grid gap-1"><Label>Nome</Label><Input value={form.position_name} onChange={(e) => setForm((f) => ({ ...f, position_name: e.target.value }))} /></div>
             <div className="grid gap-1"><Label>Ativa</Label><Select value={form.is_enabled} onValueChange={(v) => setForm((f) => ({ ...f, is_enabled: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">Sim</SelectItem><SelectItem value="0">Não</SelectItem></SelectContent></Select></div>
           </div>

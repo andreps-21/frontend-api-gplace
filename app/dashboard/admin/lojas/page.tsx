@@ -34,7 +34,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertTriangle, ChevronLeft, ChevronRight, Copy, Loader2, Mail, Pencil, Plus, Search, Store, Trash2 } from "lucide-react"
 import { toast } from "sonner"
-import { maskCpfCnpj, maskPhone, unmaskDocument, unmaskPhone } from "@/lib/masks"
+import { maskCEP, maskCpfCnpj, maskPhone, unmaskCEP, unmaskDocument, unmaskPhone } from "@/lib/masks"
 
 type Paginator<T> = { data: T[]; current_page: number; last_page: number; total: number; per_page?: number }
 
@@ -182,7 +182,7 @@ export default function AdminLojasPage() {
   const [saving, setSaving] = useState(false)
   const [stateId, setStateId] = useState("")
   const [cityId, setCityId] = useState("")
-  const [paymentMethods, setPaymentMethods] = useState<Array<{ id: number; name?: string }>>([])
+  const [paymentMethods, setPaymentMethods] = useState<Array<{ id: number; description?: string; name?: string }>>([])
   const [paymentSel, setPaymentSel] = useState<number[]>([])
   /** Titular (tenant) ao criar loja — só editável com permissão de contratantes. */
   const [tenantOptions, setTenantOptions] = useState<Array<{ id: number; label: string }>>([])
@@ -195,14 +195,17 @@ export default function AdminLojasPage() {
     email: "",
     phone: "",
     street: "",
+    zip_code: "",
+    number: "",
+    district: "",
     status: "1",
   })
 
   const loadPm = useCallback(async () => {
     try {
-      const raw = await apiService.getPaymentMethods()
-      const data = laravelInnerData<Array<{ id: number; name?: string }>>(raw)
-      setPaymentMethods(Array.isArray(data) ? data : [])
+      const raw = await apiService.getAdminPaymentMethodsCrud({ page: 1, per_page: 100 })
+      const data = laravelInnerData<Array<{ id: number; description?: string; name?: string }> | Paginator<{ id: number; description?: string; name?: string }>>(raw)
+      setPaymentMethods(Array.isArray(data) ? data : data?.data ?? [])
     } catch {
       setPaymentMethods([])
     }
@@ -248,7 +251,7 @@ export default function AdminLojasPage() {
   const openCreate = async () => {
     setDialogMode("create")
     setStoreId(null)
-    setForm({ name: "", formal_name: "", nif: "", email: "", phone: "", street: "", status: "1" })
+    setForm({ name: "", formal_name: "", nif: "", email: "", phone: "", street: "", zip_code: "", number: "", district: "", status: "1" })
     setStateId("")
     setCityId("")
     setPaymentSel([])
@@ -310,6 +313,9 @@ export default function AdminLojasPage() {
         email: String(d.email ?? ""),
         phone: maskPhone(String(d.phone ?? "")),
         street: String(d.street ?? ""),
+        zip_code: maskCEP(String(d.zip_code ?? "")),
+        number: String(d.number ?? ""),
+        district: String(d.district ?? ""),
         status: String(d.status ?? "1"),
       })
 
@@ -360,7 +366,31 @@ export default function AdminLojasPage() {
     }
   }
 
+  const missingRequiredFields = () => {
+    const fields = [
+      { value: form.nif, label: "CNPJ" },
+      { value: form.name, label: "Nome fantasia" },
+      { value: form.formal_name, label: "Razão social" },
+      { value: form.email, label: "E-mail" },
+      { value: form.phone, label: "Telefone" },
+      { value: form.street, label: "Rua" },
+      { value: cityId, label: "Cidade" },
+      { value: form.status, label: "Situação" },
+    ]
+
+    if (mayPickTenantForNewStore && tenantOptions.length > 0) {
+      fields.unshift({ value: createTenantId, label: "Titular (contratante)" })
+    }
+
+    return fields.filter((field) => String(field.value ?? "").trim() === "").map((field) => field.label)
+  }
+
   const save = async () => {
+    const missing = missingRequiredFields()
+    if (missing.length > 0) {
+      toast.error(`Preencha os campos obrigatórios: ${missing.join(", ")}.`)
+      return
+    }
     if (!cityId) {
       toast.error("Seleccione estado e cidade.")
       return
@@ -378,6 +408,9 @@ export default function AdminLojasPage() {
         email: form.email.trim(),
         phone: String(unmaskPhone(form.phone.trim())),
         street: form.street.trim(),
+        zip_code: unmaskCEP(form.zip_code.trim()),
+        number: form.number.trim(),
+        district: form.district.trim() || null,
         city_id: Number(cityId),
         status: Number(form.status),
         paymentMethods: paymentSel.map((id) => Number(id)),
@@ -780,7 +813,7 @@ export default function AdminLojasPage() {
           <SheetContent className="p-0">
             <div className="flex h-full min-h-0 flex-col">
               <SheetHeader>
-                <SheetTitle>{dialogMode === "create" ? "Nova loja" : `Editar loja #${storeId}`}</SheetTitle>
+                <SheetTitle>{dialogMode === "create" ? "Nova loja" : `Editar ${form.name || "loja"}`}</SheetTitle>
                 <SheetDescription>
                   {mayPickTenantForNewStore
                     ? dialogMode === "create"
@@ -852,6 +885,18 @@ export default function AdminLojasPage() {
                   <Label>Rua</Label>
                   <Input value={form.street} onChange={(e) => setForm((f) => ({ ...f, street: e.target.value }))} />
                 </div>
+                <div className="grid gap-2">
+                  <Label>CEP</Label>
+                  <Input inputMode="numeric" value={form.zip_code} onChange={(e) => setForm((f) => ({ ...f, zip_code: maskCEP(e.target.value) }))} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Número</Label>
+                  <Input value={form.number} onChange={(e) => setForm((f) => ({ ...f, number: e.target.value }))} maxLength={5} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Bairro</Label>
+                  <Input value={form.district} onChange={(e) => setForm((f) => ({ ...f, district: e.target.value }))} maxLength={35} />
+                </div>
                 <StateCitySelects
                   stateId={stateId}
                   cityId={cityId}
@@ -884,7 +929,7 @@ export default function AdminLojasPage() {
                       paymentMethods.map((pm) => (
                         <label key={pm.id} className="flex cursor-pointer items-center gap-2 text-sm">
                           <Checkbox checked={paymentSel.includes(pm.id)} onCheckedChange={(c) => togglePm(pm.id, c === true)} />
-                          <span>{pm.name ?? `ID ${pm.id}`}</span>
+                          <span>{pm.description ?? pm.name ?? `ID ${pm.id}`}</span>
                         </label>
                       ))
                     )}

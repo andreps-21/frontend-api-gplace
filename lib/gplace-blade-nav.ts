@@ -181,7 +181,7 @@ export const gplaceBladeNavTree: GplaceNavNode[] = [
       { kind: "link", label: "FAQ", href: "/dashboard/admin/faq", permission: "faq_view", requiresStore: true },
       { kind: "link", label: "Catálogo", href: "/dashboard/admin/catalogos", permission: "catalogs_view", requiresStore: true },
       { kind: "link", label: "Parâmetros", href: "/dashboard/admin/parametros", permission: "parameters_view" },
-      { kind: "link", label: "Configuração", href: "/dashboard/admin/configuracao-loja", permission: "settings_edit", requiresStore: true },
+      { kind: "link", label: "Configuração da loja", href: "/dashboard/admin/configuracao-loja", permission: "settings_edit", requiresStore: true },
       { kind: "link", label: "Tokens Integração", href: "/dashboard/admin/tokens", permission: "tokens_view" },
     ],
   },

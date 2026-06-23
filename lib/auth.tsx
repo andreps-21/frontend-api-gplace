@@ -5,13 +5,40 @@ import { apiService, User, LoginRequest, RegisterRequest, ApiError } from '@/lib
 import { usePersistedAuth } from './use-persisted-auth';
 
 const AUTH_USER_SNAPSHOT_KEY = 'auth_user_snapshot';
+const AUTH_USER_SNAPSHOT_MAX_AGE_MS = 2 * 60 * 1000;
+
+type UserSnapshot = {
+  user: User;
+  syncedAt: number;
+};
+
+const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+function isUserSnapshot(value: unknown): value is UserSnapshot {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'user' in value &&
+    'syncedAt' in value &&
+    typeof (value as UserSnapshot).syncedAt === 'number'
+  );
+}
 
 function readUserSnapshot(): User | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(AUTH_USER_SNAPSHOT_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as User;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!isUserSnapshot(parsed)) {
+      localStorage.removeItem(AUTH_USER_SNAPSHOT_KEY);
+      return null;
+    }
+    if (Date.now() - parsed.syncedAt > AUTH_USER_SNAPSHOT_MAX_AGE_MS) {
+      localStorage.removeItem(AUTH_USER_SNAPSHOT_KEY);
+      return null;
+    }
+    return parsed.user;
   } catch {
     return null;
   }
@@ -24,9 +51,28 @@ function writeUserSnapshot(user: User | null) {
     return;
   }
   try {
-    localStorage.setItem(AUTH_USER_SNAPSHOT_KEY, JSON.stringify(user));
+    localStorage.setItem(AUTH_USER_SNAPSHOT_KEY, JSON.stringify({ user, syncedAt: Date.now() }));
   } catch {
     // ignore quota / private mode
+  }
+}
+
+function userHasSyncedPermissions(user: User | null | undefined): boolean {
+  return Array.isArray(user?.permissions);
+}
+
+async function fetchProfileWithRetry(): Promise<User> {
+  try {
+    const response = await apiService.getProfile();
+    return response.data;
+  } catch (error) {
+    const apiError = error as ApiError;
+    if (apiError.status !== 429) {
+      throw error;
+    }
+    await sleep(1200);
+    const response = await apiService.getProfile();
+    return response.data;
   }
 }
 
@@ -95,10 +141,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
           }
           return;
         }
-        const response = await apiService.getProfile();
+        const profile = await fetchProfileWithRetry();
         if (!cancelled) {
-          setUser(response.data);
-          writeUserSnapshot(response.data);
+          setUser(profile);
+          writeUserSnapshot(profile);
         }
       } catch (e) {
         if (cancelled) return;
@@ -165,13 +211,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       // Buscar perfil completo com establishment após login
       try {
-        const profileResponse = await apiService.getProfile();
-        setUser(profileResponse.data);
-        writeUserSnapshot(profileResponse.data);
+        const profile = await fetchProfileWithRetry();
+        setUser(profile);
+        writeUserSnapshot(profile);
       } catch {
         const fallback = response.data.user;
-        setUser(fallback);
-        writeUserSnapshot(fallback);
+        setUser(userHasSyncedPermissions(fallback) ? fallback : null);
+        writeUserSnapshot(null);
       }
     } catch (error) {
       const apiError = error as ApiError;

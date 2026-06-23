@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { formatInterfacePositionLabel, getInterfacePositionMeta } from "@/lib/interface-position-labels"
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import { PanelTableSkeleton } from "@/components/dashboard/panel-content-skeleton"
 import { toast } from "sonner"
@@ -122,10 +123,10 @@ export default function AdminTamanhosMidiaPage() {
   return (
     <div className="space-y-6 p-6">
       <div className="flex justify-between gap-3">
-        <div><h1 className="text-2xl font-semibold tracking-tight">Tamanho mídia</h1><p className="text-muted-foreground mt-1 text-sm">Dimensões e posições aceitas para banners.</p></div>
+        <div><h1 className="text-2xl font-semibold tracking-tight">Tamanho mídia</h1><p className="text-muted-foreground mt-1 text-sm">Dimensões aceitas para cada local de banner na home.</p></div>
         {mayCreate ? <Button onClick={() => open()}><Plus className="mr-2 h-4 w-4" />Novo tamanho</Button> : null}
       </div>
-      <Card><CardHeader><CardTitle>Listagem</CardTitle></CardHeader><CardContent>{loading ? <PanelTableSkeleton rows={8} columns={6} /> : <Table><TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Dimensão</TableHead><TableHead>Tipo</TableHead><TableHead>Posições</TableHead><TableHead>Ativo</TableHead>{mayEdit || mayDelete ? <TableHead className="text-right">Ações</TableHead> : null}</TableRow></TableHeader><TableBody>{rows.map((row) => <TableRow key={row.id}><TableCell className="font-medium">{row.name}</TableCell><TableCell>{row.size_width} x {row.size_height}</TableCell><TableCell>{options.types[String(row.type)] ?? row.type}</TableCell><TableCell>{(row.interface_positions ?? []).map((p) => `${p.id_position} - ${p.position_name}`).join(", ") || "-"}</TableCell><TableCell>{Number(row.is_enabled ?? 0) ? "Sim" : "Não"}</TableCell>{mayEdit || mayDelete ? <TableCell className="text-right">{mayEdit ? <Button variant="ghost" size="icon" onClick={() => open(row)}><Pencil className="h-4 w-4" /></Button> : null}{mayDelete ? <Button variant="ghost" size="icon" onClick={() => void remove(row)}><Trash2 className="h-4 w-4 text-destructive" /></Button> : null}</TableCell> : null}</TableRow>)}</TableBody></Table>}</CardContent></Card>
+      <Card><CardHeader><CardTitle>Listagem</CardTitle></CardHeader><CardContent>{loading ? <PanelTableSkeleton rows={8} columns={6} /> : <Table><TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Dimensão</TableHead><TableHead>Tipo</TableHead><TableHead>Locais permitidos</TableHead><TableHead>Ativo</TableHead>{mayEdit || mayDelete ? <TableHead className="text-right">Ações</TableHead> : null}</TableRow></TableHeader><TableBody>{rows.map((row) => <TableRow key={row.id}><TableCell className="font-medium">{row.name}</TableCell><TableCell>{row.size_width} x {row.size_height}</TableCell><TableCell>{options.types[String(row.type)] ?? row.type}</TableCell><TableCell>{(row.interface_positions ?? []).map((p) => formatInterfacePositionLabel(p)).join(", ") || "-"}</TableCell><TableCell>{Number(row.is_enabled ?? 0) ? "Sim" : "Não"}</TableCell>{mayEdit || mayDelete ? <TableCell className="text-right">{mayEdit ? <Button variant="ghost" size="icon" onClick={() => open(row)}><Pencil className="h-4 w-4" /></Button> : null}{mayDelete ? <Button variant="ghost" size="icon" onClick={() => void remove(row)}><Trash2 className="h-4 w-4 text-destructive" /></Button> : null}</TableCell> : null}</TableRow>)}</TableBody></Table>}</CardContent></Card>
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>{editing ? "Editar tamanho" : "Novo tamanho"}</DialogTitle></DialogHeader>
@@ -137,14 +138,21 @@ export default function AdminTamanhosMidiaPage() {
             <div className="grid gap-1"><Label>Tipo</Label><Select value={form.type} onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(options.types).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
             <div className="grid gap-1"><Label>Ativo</Label><Select value={form.is_enabled} onValueChange={(v) => setForm((f) => ({ ...f, is_enabled: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">Sim</SelectItem><SelectItem value="0">Não</SelectItem></SelectContent></Select></div>
             <div className="grid gap-2 sm:col-span-2">
-              <Label>Posições permitidas</Label>
+              <Label>Locais da home permitidos</Label>
               <div className="grid max-h-56 gap-2 overflow-auto rounded-md border p-3 sm:grid-cols-2">
-                {options.interface_positions.map((position) => (
-                  <label className="flex items-center gap-2 text-sm" key={position.id}>
-                    <Checkbox checked={form.interface_positions.includes(position.id)} onCheckedChange={(checked) => togglePosition(position.id, checked === true)} />
-                    {position.id_position} - {position.position_name}
-                  </label>
-                ))}
+                {options.interface_positions.map((position) => {
+                  const meta = getInterfacePositionMeta(position)
+                  return (
+                    <label className="flex items-start gap-2 text-sm" key={position.id}>
+                      <Checkbox checked={form.interface_positions.includes(position.id)} onCheckedChange={(checked) => togglePosition(position.id, checked === true)} />
+                      <span>
+                        {meta.code} - {meta.title}
+                        <br />
+                        <span className="text-xs text-muted-foreground">{meta.layout}</span>
+                      </span>
+                    </label>
+                  )
+                })}
               </div>
             </div>
           </div>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { apiService } from "@/lib/api"
+import { apiService, type City } from "@/lib/api"
 import { laravelInnerData } from "@/lib/laravel-data"
 import { useGplacePermissions } from "@/lib/use-gplace-permissions"
 import { AccessDenied } from "@/components/ui/access-denied"
@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import CitySearch from "@/components/ui/city-search"
 import { Loader2 } from "lucide-react"
 import { PanelFormPageSkeleton } from "@/components/dashboard/panel-content-skeleton"
+import { maskCEP, unmaskCEP } from "@/lib/masks"
 import { toast } from "sonner"
 
 type SettingsBundle = {
@@ -43,13 +44,43 @@ const emptyForm = () => ({
   terms: "",
   privacy_policy: "",
   footer: "",
+  footer_background_color: "#1e293b",
+  footer_text_color: "#ffffff",
+  brand_color: "#0284c7",
   meta_tags: "",
   pixels: "",
   ads: "",
   cookies: "",
 })
 
+type SettingsForm = ReturnType<typeof emptyForm>
+
 const imageUrl = (value: unknown) => (typeof value === "string" && value.trim() ? value : null)
+const colorPickerValue = (value: string, fallback: string) => (/^#[0-9A-Fa-f]{6}$/.test(value) ? value : fallback)
+
+function cityFromSettings(settings: Record<string, unknown>): City | null {
+  const city = settings.city
+  if (city === null || typeof city !== "object") return null
+
+  const raw = city as Record<string, unknown>
+  const state = raw.state as Record<string, unknown> | undefined
+  const id = Number(raw.id ?? settings.city_id)
+  const stateId = Number(raw.state_id ?? state?.id ?? 0)
+  const title = String(raw.title ?? raw.name ?? "").trim()
+
+  if (!id || !title) return null
+
+  return {
+    id,
+    title,
+    state_id: stateId,
+    letter: String(raw.letter ?? state?.letter ?? state?.uf ?? ""),
+    lat: String(raw.lat ?? ""),
+    long: String(raw.long ?? ""),
+    created_at: String(raw.created_at ?? ""),
+    updated_at: String(raw.updated_at ?? ""),
+  }
+}
 
 export default function ConfiguracaoLojaGplacePage() {
   const { can } = useGplacePermissions()
@@ -58,8 +89,11 @@ export default function ConfiguracaoLojaGplacePage() {
   const [form, setForm] = useState(emptyForm)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoFooterFile, setLogoFooterFile] = useState<File | null>(null)
+  const [faviconFile, setFaviconFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [logoFooterPreview, setLogoFooterPreview] = useState<string | null>(null)
+  const [faviconPreview, setFaviconPreview] = useState<string | null>(null)
+  const [selectedCity, setSelectedCity] = useState<City | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -71,14 +105,20 @@ export default function ConfiguracaoLojaGplacePage() {
         setForm(emptyForm())
         setLogoFile(null)
         setLogoFooterFile(null)
+        setFaviconFile(null)
         setLogoPreview(null)
         setLogoFooterPreview(null)
+        setFaviconPreview(null)
+        setSelectedCity(null)
         return
       }
       setLogoFile(null)
       setLogoFooterFile(null)
+      setFaviconFile(null)
       setLogoPreview(imageUrl(s.logo_url) ?? imageUrl(s.logo))
-      setLogoFooterPreview(imageUrl(s.logo_footer))
+      setLogoFooterPreview(imageUrl(s.logo_footer_url) ?? imageUrl(s.logo_footer))
+      setFaviconPreview(imageUrl(s.favicon_url) ?? imageUrl(s.favicon))
+      setSelectedCity(cityFromSettings(s))
       setForm({
         name: String(s.name ?? ""),
         full_name: String(s.full_name ?? ""),
@@ -89,7 +129,7 @@ export default function ConfiguracaoLojaGplacePage() {
         district: String(s.district ?? ""),
         maps: String(s.maps ?? ""),
         contact: String(s.contact ?? ""),
-        zip_code: String(s.zip_code ?? ""),
+        zip_code: maskCEP(String(s.zip_code ?? "")),
         email: String(s.email ?? ""),
         phone: String(s.phone ?? ""),
         status: String(s.status ?? "1"),
@@ -100,6 +140,9 @@ export default function ConfiguracaoLojaGplacePage() {
         terms: String(s.terms ?? ""),
         privacy_policy: String(s.privacy_policy ?? ""),
         footer: String(s.footer ?? ""),
+        footer_background_color: String(s.footer_background_color ?? "#1e293b"),
+        footer_text_color: String(s.footer_text_color ?? "#ffffff"),
+        brand_color: String(s.brand_color ?? "#0284c7"),
         meta_tags: String(s.meta_tags ?? ""),
         pixels: String(s.pixels ?? ""),
         ads: String(s.ads ?? ""),
@@ -121,10 +164,36 @@ export default function ConfiguracaoLojaGplacePage() {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  const handleLogoChange = (type: "logo" | "logo_footer", file?: File | null) => {
+  const missingRequiredFields = (data: SettingsForm) => {
+    const required: Array<{ key: keyof SettingsForm; label: string }> = [
+      { key: "full_name", label: "Razão social" },
+      { key: "name", label: "Nome fantasia" },
+      { key: "nif", label: "CPF / CNPJ" },
+      { key: "email", label: "E-mail" },
+      { key: "phone", label: "Telefone" },
+      { key: "whatsapp_phone", label: "WhatsApp" },
+      { key: "status", label: "Estado" },
+      { key: "zip_code", label: "CEP" },
+      { key: "address", label: "Endereço" },
+      { key: "number", label: "Número" },
+      { key: "city_id", label: "Cidade" },
+      { key: "portal_url", label: "URL do portal" },
+      { key: "email_notification", label: "E-mail de notificação" },
+    ]
+
+    return required
+      .filter(({ key }) => String(data[key] ?? "").trim() === "")
+      .map(({ label }) => label)
+  }
+
+  const handleLogoChange = (type: "logo" | "logo_footer" | "favicon", file?: File | null) => {
     if (!file) return
     if (!file.type.startsWith("image/")) {
       toast.error("Selecione um arquivo de imagem.")
+      return
+    }
+    if (type === "favicon" && !["image/png", "image/jpeg"].includes(file.type)) {
+      toast.error("O favicon deve ser uma imagem PNG ou JPEG.")
       return
     }
 
@@ -132,9 +201,12 @@ export default function ConfiguracaoLojaGplacePage() {
     if (type === "logo") {
       setLogoFile(file)
       setLogoPreview(preview)
-    } else {
+    } else if (type === "logo_footer") {
       setLogoFooterFile(file)
       setLogoFooterPreview(preview)
+    } else {
+      setFaviconFile(file)
+      setFaviconPreview(preview)
     }
   }
 
@@ -146,16 +218,22 @@ export default function ConfiguracaoLojaGplacePage() {
       } else if (key === "status") {
         payload.append(key, String(Number(form.status)))
       } else {
-        payload.append(key, String(value ?? ""))
+        payload.append(key, key === "zip_code" ? unmaskCEP(String(value ?? "")) : String(value ?? ""))
       }
     })
     if (logoFile) payload.append("logo", logoFile)
     if (logoFooterFile) payload.append("logo_footer", logoFooterFile)
+    if (faviconFile) payload.append("favicon", faviconFile)
     return payload
   }
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const missing = missingRequiredFields(form)
+    if (missing.length > 0) {
+      toast.error(`Preencha os campos obrigatórios: ${missing.join(", ")}.`)
+      return
+    }
     setSaving(true)
     try {
       await apiService.updateAdminStoreSettings(buildPayload())
@@ -198,7 +276,7 @@ export default function ConfiguracaoLojaGplacePage() {
             <CardDescription>Dados da loja no escopo do header <code>app</code>.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-            <div className="grid gap-4 md:col-span-2 md:grid-cols-2 2xl:col-span-3">
+            <div className="grid gap-4 md:col-span-2 md:grid-cols-3 2xl:col-span-3">
               <div className="space-y-2">
                 <Label>Logo do topo</Label>
                 <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
@@ -228,6 +306,22 @@ export default function ConfiguracaoLojaGplacePage() {
                     <span className="font-medium text-foreground">Enviar logo do rodapé</span>
                     <span className="mt-1">PNG, JPG, WEBP, GIF ou SVG até 5MB.</span>
                     <Input accept="image/*" className="hidden" type="file" onChange={(e) => handleLogoChange("logo_footer", e.target.files?.[0])} />
+                  </label>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Favicon da loja</Label>
+                <div className="grid gap-3 sm:grid-cols-[96px_1fr]">
+                  <div
+                    className="flex h-24 items-center justify-center rounded-lg border bg-muted bg-contain bg-center bg-no-repeat text-center text-xs text-muted-foreground"
+                    style={faviconPreview ? { backgroundImage: `url(${faviconPreview})` } : undefined}
+                  >
+                    {!faviconPreview ? "Sem favicon" : null}
+                  </div>
+                  <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground transition hover:bg-muted/50">
+                    <span className="font-medium text-foreground">Enviar favicon</span>
+                    <span className="mt-1">PNG ou JPEG até 1MB. A API converte para .ico.</span>
+                    <Input accept="image/png,image/jpeg" className="hidden" type="file" onChange={(e) => handleLogoChange("favicon", e.target.files?.[0])} />
                   </label>
                 </div>
               </div>
@@ -272,7 +366,7 @@ export default function ConfiguracaoLojaGplacePage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="zip_code">CEP</Label>
-              <Input id="zip_code" value={form.zip_code} onChange={(e) => update("zip_code", e.target.value)} required />
+              <Input id="zip_code" inputMode="numeric" value={form.zip_code} onChange={(e) => update("zip_code", maskCEP(e.target.value))} required />
             </div>
             <div className="space-y-2 md:col-span-2 2xl:col-span-3">
               <Label htmlFor="address">Endereço</Label>
@@ -288,8 +382,12 @@ export default function ConfiguracaoLojaGplacePage() {
             </div>
             <div className="space-y-2 md:col-span-2 2xl:col-span-1">
               <CitySearch
-                value={form.city_id ? `Cidade #${form.city_id}` : ""}
-                onCitySelect={(city) => update("city_id", String(city.id))}
+                value={selectedCity?.title ?? ""}
+                selectedCity={selectedCity}
+                onCitySelect={(city) => {
+                  setSelectedCity(city.id > 0 ? city : null)
+                  update("city_id", city.id > 0 ? String(city.id) : "")
+                }}
                 onStateChange={() => undefined}
                 label="Cidade"
                 required
@@ -343,6 +441,69 @@ export default function ConfiguracaoLojaGplacePage() {
               <Textarea id="footer" rows={3} value={form.footer} onChange={(e) => update("footer", e.target.value)} />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="footer_background_color">Cor do cabeçalho e rodapé</Label>
+              <div className="grid gap-3 sm:grid-cols-[56px_1fr]">
+                <Input
+                  id="footer_background_color_picker"
+                  aria-label="Selecionar cor do cabeçalho e rodapé"
+                  className="h-10 w-14 cursor-pointer p-1"
+                  type="color"
+                  value={colorPickerValue(form.footer_background_color, "#1e293b")}
+                  onChange={(e) => update("footer_background_color", e.target.value)}
+                />
+                <Input
+                  id="footer_background_color"
+                  value={form.footer_background_color}
+                  onChange={(e) => update("footer_background_color", e.target.value)}
+                  placeholder="#1e293b"
+                  maxLength={7}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Define a cor de fundo do cabeçalho e do rodapé no ecommerce.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="footer_text_color">Cor da fonte do cabeçalho e rodapé</Label>
+              <div className="grid gap-3 sm:grid-cols-[56px_1fr]">
+                <Input
+                  id="footer_text_color_picker"
+                  aria-label="Selecionar cor da fonte do cabeçalho e rodapé"
+                  className="h-10 w-14 cursor-pointer p-1"
+                  type="color"
+                  value={colorPickerValue(form.footer_text_color, "#ffffff")}
+                  onChange={(e) => update("footer_text_color", e.target.value)}
+                />
+                <Input
+                  id="footer_text_color"
+                  value={form.footer_text_color}
+                  onChange={(e) => update("footer_text_color", e.target.value)}
+                  placeholder="#ffffff"
+                  maxLength={7}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Define a cor dos textos e links do cabeçalho e do rodapé no ecommerce.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="brand_color">Cor principal da loja</Label>
+              <div className="grid gap-3 sm:grid-cols-[56px_1fr]">
+                <Input
+                  id="brand_color_picker"
+                  aria-label="Selecionar cor principal da loja"
+                  className="h-10 w-14 cursor-pointer p-1"
+                  type="color"
+                  value={colorPickerValue(form.brand_color, "#0284c7")}
+                  onChange={(e) => update("brand_color", e.target.value)}
+                />
+                <Input
+                  id="brand_color"
+                  value={form.brand_color}
+                  onChange={(e) => update("brand_color", e.target.value)}
+                  placeholder="#0284c7"
+                  maxLength={7}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Controla links, botões, preços e destaques azuis no ecommerce.</p>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="meta_tags">Meta tags</Label>
               <Textarea id="meta_tags" rows={2} value={form.meta_tags} onChange={(e) => update("meta_tags", e.target.value)} />
             </div>
@@ -364,7 +525,7 @@ export default function ConfiguracaoLojaGplacePage() {
         </Card>
         </div>
 
-        <div className="sticky bottom-0 z-10 flex justify-end gap-2 border-t bg-background/95 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/75">
+        <div className="sticky bottom-[-0.75rem] z-30 -mx-3 -mb-3 flex justify-end gap-2 border-t bg-background/95 px-3 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur supports-[backdrop-filter]:bg-background/75 sm:bottom-[-1.25rem] sm:-mx-5 sm:-mb-5 sm:px-5 md:bottom-[-1.5rem] md:-mx-6 md:-mb-6 md:px-6">
           <Button type="button" variant="outline" onClick={() => void load()} disabled={saving}>
             Recarregar
           </Button>
