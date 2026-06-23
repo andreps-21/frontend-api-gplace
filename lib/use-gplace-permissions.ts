@@ -197,6 +197,7 @@ export function useGplacePermissions() {
     const out: GplaceNavNode[] = []
     for (const n of nodes) {
       if (n.kind === "link") {
+        if (n.anyOf && !canAny(n.anyOf)) continue
         if (!can(n.permission)) continue
         if (n.requiresStore && !hasStoreContext) continue
         if (n.requiresTenant && !hasTenantContext) continue

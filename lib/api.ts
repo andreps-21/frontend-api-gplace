@@ -224,6 +224,48 @@ export interface Product {
   updated_at: string;
 }
 
+export type ProductFieldType =
+  | 'fixed'
+  | 'text'
+  | 'number'
+  | 'money'
+  | 'date'
+  | 'boolean'
+  | 'select'
+  | 'multiselect'
+  | 'color'
+  | 'url';
+
+export interface ProductFieldSetting {
+  id?: number;
+  product_form_template_id?: number | null;
+  field_key: string;
+  label: string;
+  type: ProductFieldType;
+  is_fixed: boolean;
+  is_visible: boolean;
+  is_required: boolean;
+  show_on_ecommerce: boolean;
+  show_as_filter: boolean;
+  options?: string[] | null;
+  sort_order: number;
+}
+
+export interface ProductFormTemplate {
+  id: number;
+  name: string;
+  code: string;
+  description?: string | null;
+  fields: ProductFieldSetting[];
+}
+
+export interface StoreProductParametersPayload {
+  templates: ProductFormTemplate[];
+  current_template_id: number | null;
+  fields: ProductFieldSetting[];
+  field_types: ProductFieldType[];
+}
+
 // Interface para escola
 export interface School {
   id: number;
@@ -751,9 +793,23 @@ class ApiService {
       measurement_units: Array<{ id: number; name: string; initials?: string }>;
       families: Array<{ id: number; name: string }>;
       presentations: Array<{ id: number; name: string }>;
+      product_field_settings: ProductFieldSetting[];
     }>
   > {
     const response = await this.api.get('/admin/product-form-meta');
+    return response.data;
+  }
+
+  async getAdminStoreProductParameters(): Promise<ApiResponse<StoreProductParametersPayload>> {
+    const response = await this.api.get('/admin/store-product-parameters');
+    return response.data;
+  }
+
+  async updateAdminStoreProductParameters(payload: {
+    template_id: number | null;
+    fields: ProductFieldSetting[];
+  }): Promise<ApiResponse<{ current_template_id: number | null; fields: ProductFieldSetting[] }>> {
+    const response = await this.api.put('/admin/store-product-parameters', payload);
     return response.data;
   }
 

@@ -10,6 +10,8 @@ export type GplaceNavNode =
       href: string
       /** Permissão Spatie; vazio = sempre visível (ex.: Dashboard). */
       permission: string
+      /** Visível se qualquer permissão listada existir. */
+      anyOf?: string[]
       /** Blade: `@if(session()->has('store'))` à volta do item. */
       requiresStore?: boolean
       /** Blade: `@if(session()->exists('tenant'))` (ex.: Marca). */
@@ -60,8 +62,8 @@ const CANANY_RELATORIOS = ["product_report_view", "order_report_view"]
 
 const CANANY_GERENCIAMENTO = ["users_view", "roles_view", "permissions_view"]
 
-/** Blade L360: Configurações (exterior; `tokens_view` e `faq_view` não abrem o grupo sozinhos). */
-const CANANY_CONFIG = ["parameters_view", "banners_view", "catalogs_view", "settings_edit"]
+const CANANY_CONFIG = ["parameters_view", "catalogs_view", "faq_view", "settings_edit", "tokens_view"]
+const CANANY_STORE_SETTINGS = ["catalogs_view", "faq_view", "settings_edit", "tokens_view"]
 
 export const gplaceBladeNavTree: GplaceNavNode[] = [
   { kind: "link", label: "Dashboard", href: "/dashboard", permission: "" },
@@ -178,11 +180,15 @@ export const gplaceBladeNavTree: GplaceNavNode[] = [
     label: "Configurações",
     anyOf: CANANY_CONFIG,
     children: [
-      { kind: "link", label: "FAQ", href: "/dashboard/admin/faq", permission: "faq_view", requiresStore: true },
-      { kind: "link", label: "Catálogo", href: "/dashboard/admin/catalogos", permission: "catalogs_view", requiresStore: true },
       { kind: "link", label: "Parâmetros", href: "/dashboard/admin/parametros", permission: "parameters_view" },
-      { kind: "link", label: "Configuração da loja", href: "/dashboard/admin/configuracao-loja", permission: "settings_edit", requiresStore: true },
-      { kind: "link", label: "Tokens Integração", href: "/dashboard/admin/tokens", permission: "tokens_view" },
+      {
+        kind: "link",
+        label: "Configuração da loja",
+        href: "/dashboard/admin/configuracao-loja",
+        permission: "",
+        anyOf: CANANY_STORE_SETTINGS,
+        requiresStore: true,
+      },
     ],
   },
 ]

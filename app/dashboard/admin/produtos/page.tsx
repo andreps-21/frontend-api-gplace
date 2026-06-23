@@ -2,7 +2,7 @@
 
 import { type DragEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { apiService } from "@/lib/api"
+import { apiService, type ProductFieldSetting } from "@/lib/api"
 import { laravelInnerData } from "@/lib/laravel-data"
 import { useGplacePermissions } from "@/lib/use-gplace-permissions"
 import { AccessDenied } from "@/components/ui/access-denied"
@@ -132,6 +132,7 @@ type Meta = {
   measurement_units: Array<{ id: number; name: string; initials?: string }>
   families: Array<{ id: number; name: string }>
   presentations: Array<{ id: number; name: string }>
+  product_field_settings: ProductFieldSetting[]
 }
 
 const EMPTY_PRODUCT_META: Meta = {
@@ -139,6 +140,7 @@ const EMPTY_PRODUCT_META: Meta = {
   measurement_units: [],
   families: [],
   presentations: [],
+  product_field_settings: [],
 }
 
 /** Passos alinhados ao fluxo «Novo utilizador» do Apollo (stepper + cartão + Voltar/Próximo). */
@@ -151,6 +153,17 @@ const PRODUCT_WIZARD_STEPS = [
 ] as const
 
 const PRODUCT_WIZARD_STEP_ICONS = [Package, ScrollText, Layers, Ruler, FileText] as const
+const PRODUCT_IMAGE_LIMIT = 5
+
+function productImageUrlFromName(name: unknown, firstImageUrl: string | null): string | null {
+  if (typeof name !== "string" || !name.trim()) return null
+  if (/^https?:\/\//i.test(name)) return name
+  if (!firstImageUrl) return null
+  const cleanName = name.replace(/^\/+/, "")
+  const idx = firstImageUrl.indexOf(cleanName)
+  if (idx >= 0) return `${firstImageUrl.slice(0, idx)}${cleanName}`
+  return null
+}
 
 function num(v: string): number {
   const n = parseFloat(String(v).replace(",", "."))
@@ -360,11 +373,12 @@ export default function AdminProdutosPage() {
   const [newUmInitials, setNewUmInitials] = useState("")
   const [newUmSaving, setNewUmSaving] = useState(false)
   const [wizardStep, setWizardStep] = useState(1)
-  const [productImageFile, setProductImageFile] = useState<File | null>(null)
-  const [productImagePreviewUrl, setProductImagePreviewUrl] = useState<string | null>(null)
-  const [productImageUrl, setProductImageUrl] = useState<string | null>(null)
+  const [productImageFiles, setProductImageFiles] = useState<File[]>([])
+  const [productImagePreviewUrls, setProductImagePreviewUrls] = useState<string[]>([])
+  const [productImageUrls, setProductImageUrls] = useState<string[]>([])
   const [uploadingProductImage, setUploadingProductImage] = useState(false)
   const [isProductImageDragging, setIsProductImageDragging] = useState(false)
+  const [dynamicAttributes, setDynamicAttributes] = useState<Record<string, string | string[]>>({})
 
   const [form, setForm] = useState({
     reference: "",
@@ -413,14 +427,23 @@ export default function AdminProdutosPage() {
   })
 
   useEffect(() => {
-    if (!productImageFile) {
-      setProductImagePreviewUrl(null)
-      return
+    return () => {
+      productImagePreviewUrls.forEach((url) => URL.revokeObjectURL(url))
     }
-    const url = URL.createObjectURL(productImageFile)
-    setProductImagePreviewUrl(url)
-    return () => URL.revokeObjectURL(url)
-  }, [productImageFile])
+  }, [productImagePreviewUrls])
+
+  const productFieldSettings = meta?.product_field_settings ?? []
+  const fieldSetting = (key: string) => productFieldSettings.find((field) => field.field_key === key)
+  const fieldVisible = (key: string) => fieldSetting(key)?.is_visible !== false
+  const fieldRequired = (key: string) => fieldSetting(key)?.is_required === true
+  const fieldLabel = (key: string, fallback: string) => fieldSetting(key)?.label || fallback
+  const dynamicProductFields = productFieldSettings
+    .filter((field) => !field.is_fixed && field.is_visible)
+    .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0))
+
+  const updateDynamicAttribute = (key: string, value: string | string[]) => {
+    setDynamicAttributes((prev) => ({ ...prev, [key]: value }))
+  }
 
   useEffect(() => {
     const t = window.setTimeout(() => setEffectiveSearch(searchInput.trim()), 400)
@@ -952,8 +975,10 @@ export default function AdminProdutosPage() {
   const openCreate = async () => {
     setProductDialogMode("create")
     setEditingId(null)
-    setProductImageFile(null)
-    setProductImageUrl(null)
+    setProductImageFiles([])
+    setProductImagePreviewUrls([])
+    setProductImageUrls([])
+    setDynamicAttributes({})
     setBrandSearch("")
     setShowBrandSuggestions(false)
     setShowCommercialNameSuggestions(false)
@@ -1034,8 +1059,33 @@ export default function AdminProdutosPage() {
       }
       const raw = await apiService.getAdminProduct(id)
       const d = laravelInnerData<Record<string, unknown>>(raw)
-      setProductImageUrl(typeof (d as { image_url?: unknown }).image_url === "string" ? String((d as { image_url?: unknown }).image_url) : null)
-      setProductImageFile(null)
+      const firstImageUrl = typeof (d as { image_url?: unknown }).image_url === "string" ? String((d as { image_url?: unknown }).image_url) : null
+      const imageRows = Array.isArray(d.images) ? (d.images as Array<Record<string, unknown>>) : []
+      setProductImageUrls(
+        imageRows
+          .map((image) => productImageUrlFromName(image.name, firstImageUrl))
+          .filter((url): url is string => Boolean(url))
+          .slice(0, PRODUCT_IMAGE_LIMIT),
+      )
+      setProductImageFiles([])
+      setProductImagePreviewUrls([])
+      const attrRows = Array.isArray(d.attributes) ? (d.attributes as Array<Record<string, unknown>>) : []
+      setDynamicAttributes(
+        Object.fromEntries(
+          attrRows.map((attr) => {
+            const value = String(attr.value ?? "")
+            if (String(attr.type ?? "") === "multiselect") {
+              try {
+                const parsed = JSON.parse(value)
+                return [String(attr.field_key), Array.isArray(parsed) ? parsed.map(String) : []]
+              } catch {
+                return [String(attr.field_key), value ? [value] : []]
+              }
+            }
+            return [String(attr.field_key), value]
+          }),
+        ),
+      )
       const pms = (d.payment_methods ?? d.paymentMethods) as Array<{ id: number }> | undefined
       setPaymentSel(Array.isArray(pms) ? pms.map((x) => x.id) : [])
       const secs = (d.sections as Array<{ id: number }> | undefined) ?? []
@@ -1147,16 +1197,24 @@ export default function AdminProdutosPage() {
     setPaymentSel((prev) => (checked ? [...prev, id] : prev.filter((x) => x !== id)))
   }
 
-  const selectProductImageFile = (file: File | null) => {
-    if (!file) {
-      setProductImageFile(null)
+  const selectProductImageFiles = (files: FileList | File[] | null | undefined) => {
+    const list = Array.from(files ?? [])
+    if (list.length === 0) {
+      setProductImageFiles([])
+      setProductImagePreviewUrls([])
       return
     }
-    if (!file.type.startsWith("image/")) {
+    const validImages = list.filter((file) => file.type.startsWith("image/"))
+    if (validImages.length !== list.length) {
       toast.error("Selecione um arquivo de imagem.")
       return
     }
-    setProductImageFile(file)
+    if (validImages.length > PRODUCT_IMAGE_LIMIT) {
+      toast.error(`Selecione no máximo ${PRODUCT_IMAGE_LIMIT} imagens.`)
+      return
+    }
+    setProductImageFiles(validImages)
+    setProductImagePreviewUrls(validImages.map((file) => URL.createObjectURL(file)))
   }
 
   const handleProductImageDrop = (event: DragEvent<HTMLDivElement>) => {
@@ -1164,7 +1222,7 @@ export default function AdminProdutosPage() {
     event.stopPropagation()
     setIsProductImageDragging(false)
     if (sheetReadOnly || uploadingProductImage || saving) return
-    selectProductImageFile(event.dataTransfer.files?.[0] ?? null)
+    selectProductImageFiles(event.dataTransfer.files)
   }
 
   const toggleSec = (id: number, checked: boolean) => {
@@ -1187,6 +1245,15 @@ export default function AdminProdutosPage() {
     const umId = parseInt(String(form.um_id).trim(), 10)
     if (!Number.isFinite(umId) || umId < 1) {
       toast.error("Seleccione uma unidade de medida no passo «Catálogo».")
+      return
+    }
+
+    const missingDynamic = dynamicProductFields.filter((field) => {
+      const value = dynamicAttributes[field.field_key]
+      return field.is_required && (value == null || value === "" || (Array.isArray(value) && value.length === 0))
+    })
+    if (missingDynamic.length > 0) {
+      toast.error(`Preencha os atributos obrigatórios: ${missingDynamic.map((field) => field.label).join(", ")}.`)
       return
     }
 
@@ -1238,18 +1305,27 @@ export default function AdminProdutosPage() {
         stock_change_note: editingId && form.stock_change_note.trim() ? form.stock_change_note.trim() : null,
         payment_methods: paymentSel,
         sections: sectionIds,
+        attributes: dynamicAttributes,
       }
 
       if (editingId) {
         await apiService.updateAdminProduct(editingId, payload)
-        if (productImageFile) {
+        if (productImageFiles.length > 0) {
           setUploadingProductImage(true)
           try {
-            const r = await apiService.uploadAdminProductImages(editingId, [productImageFile])
+            const r = await apiService.uploadAdminProductImages(editingId, productImageFiles)
             const d = laravelInnerData<Record<string, unknown>>(r)
-            setProductImageUrl(typeof (d as { image_url?: unknown }).image_url === "string" ? String((d as { image_url?: unknown }).image_url) : null)
-            setProductImageFile(null)
-            toast.success("Imagem actualizada.")
+            const firstImageUrl = typeof (d as { image_url?: unknown }).image_url === "string" ? String((d as { image_url?: unknown }).image_url) : null
+            const imageRows = Array.isArray(d.images) ? (d.images as Array<Record<string, unknown>>) : []
+            setProductImageUrls(
+              imageRows
+                .map((image) => productImageUrlFromName(image.name, firstImageUrl))
+                .filter((url): url is string => Boolean(url))
+                .slice(0, PRODUCT_IMAGE_LIMIT),
+            )
+            setProductImageFiles([])
+            setProductImagePreviewUrls([])
+            toast.success("Imagens actualizadas.")
           } finally {
             setUploadingProductImage(false)
           }
@@ -1260,14 +1336,22 @@ export default function AdminProdutosPage() {
         const created = await apiService.createAdminProduct(payload)
         const createdData = laravelInnerData<Record<string, unknown>>(created)
         const newId = Number((createdData as { id?: unknown }).id)
-        if (productImageFile && Number.isFinite(newId) && newId > 0) {
+        if (productImageFiles.length > 0 && Number.isFinite(newId) && newId > 0) {
           setUploadingProductImage(true)
           try {
-            const r = await apiService.uploadAdminProductImages(newId, [productImageFile])
+            const r = await apiService.uploadAdminProductImages(newId, productImageFiles)
             const d = laravelInnerData<Record<string, unknown>>(r)
-            setProductImageUrl(typeof (d as { image_url?: unknown }).image_url === "string" ? String((d as { image_url?: unknown }).image_url) : null)
-            setProductImageFile(null)
-            toast.success("Imagem enviada.")
+            const firstImageUrl = typeof (d as { image_url?: unknown }).image_url === "string" ? String((d as { image_url?: unknown }).image_url) : null
+            const imageRows = Array.isArray(d.images) ? (d.images as Array<Record<string, unknown>>) : []
+            setProductImageUrls(
+              imageRows
+                .map((image) => productImageUrlFromName(image.name, firstImageUrl))
+                .filter((url): url is string => Boolean(url))
+                .slice(0, PRODUCT_IMAGE_LIMIT),
+            )
+            setProductImageFiles([])
+            setProductImagePreviewUrls([])
+            toast.success("Imagens enviadas.")
           } finally {
             setUploadingProductImage(false)
           }
@@ -2131,8 +2215,9 @@ export default function AdminProdutosPage() {
             if (!open) {
               setWizardStep(1)
               setProductDialogMode("create")
-              setProductImageFile(null)
-              setProductImageUrl(null)
+              setProductImageFiles([])
+              setProductImagePreviewUrls([])
+              setProductImageUrls([])
               setShowBrandSuggestions(false)
               setBrandSearch("")
               setShowCommercialNameSuggestions(false)
@@ -2232,17 +2317,37 @@ export default function AdminProdutosPage() {
                     {wizardStep === 1 ? (
                       <>
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-foreground">Imagem do produto</h3>
+              <h3 className="text-sm font-semibold text-foreground">Imagens do produto</h3>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-                <div className="w-full sm:w-44">
-                  <div className="aspect-square w-full overflow-hidden rounded-md border bg-muted/30">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={productImagePreviewUrl ?? productImageUrl ?? "/images/noimage.png"}
-                      alt="Pré-visualização"
-                      className="h-full w-full object-cover"
-                    />
+                <div className="w-full sm:w-56">
+                  <div className="grid grid-cols-2 gap-2">
+                    {(productImagePreviewUrls.length > 0 ? productImagePreviewUrls : productImageUrls).length > 0 ? (
+                      (productImagePreviewUrls.length > 0 ? productImagePreviewUrls : productImageUrls).map((url, index) => (
+                        <div className="aspect-square overflow-hidden rounded-md border bg-muted/30" key={`${url}-${index}`}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={url}
+                            alt={`Pré-visualização ${index + 1}`}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      ))
+                    ) : (
+                      <div className="aspect-square overflow-hidden rounded-md border bg-muted/30">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src="/images/noimage.png"
+                          alt="Sem imagem"
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    )}
                   </div>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    {productImagePreviewUrls.length > 0
+                      ? `${productImagePreviewUrls.length} nova(s) imagem(ns) seleccionada(s).`
+                      : `${productImageUrls.length} imagem(ns) cadastrada(s).`}
+                  </p>
                 </div>
                 <div
                   className={cn(
@@ -2279,14 +2384,15 @@ export default function AdminProdutosPage() {
                         (sheetReadOnly || uploadingProductImage || saving) && "pointer-events-none opacity-60",
                       )}
                     >
-                      Selecionar um arquivo do seu dispositivo
+                      Selecionar até {PRODUCT_IMAGE_LIMIT} imagens do dispositivo
                       <Input
                         type="file"
                         accept="image/*"
+                        multiple
                         className="sr-only"
                         disabled={sheetReadOnly || uploadingProductImage || saving}
                         onChange={(e) => {
-                          selectProductImageFile(e.target.files?.[0] ?? null)
+                          selectProductImageFiles(e.target.files)
                         }}
                       />
                     </Label>
@@ -2295,17 +2401,17 @@ export default function AdminProdutosPage() {
                       variant="outline"
                       size="sm"
                       className="h-8 px-3 text-xs"
-                      disabled={sheetReadOnly || uploadingProductImage || saving || (!productImageFile && !productImageUrl)}
+                      disabled={sheetReadOnly || uploadingProductImage || saving || productImageFiles.length === 0}
                       onClick={() => {
-                        setProductImageFile(null)
-                        setProductImageUrl(null)
+                        setProductImageFiles([])
+                        setProductImagePreviewUrls([])
                       }}
                     >
-                      Remover
+                      Limpar seleção
                     </Button>
                   </div>
                   <p className="mt-1.5 max-w-md text-[10px] leading-snug text-muted-foreground">
-                    JPG, PNG ou WebP. Ao salvar, a imagem será enviada automaticamente para o produto.
+                    JPG, PNG ou WebP. Ao salvar, até {PRODUCT_IMAGE_LIMIT} imagens serão enviadas e substituirão as atuais.
                   </p>
                   {!editingId ? (
                     <p className="text-[10px] leading-snug text-muted-foreground">
@@ -2316,17 +2422,24 @@ export default function AdminProdutosPage() {
               </div>
             </div>
                         <div className="grid gap-2 sm:grid-cols-2">
+                          {fieldVisible("reference") ? (
                           <div className="grid gap-2">
-                            <Label>Referência</Label>
+                            <Label>{fieldLabel("reference", "Referência")}{fieldRequired("reference") ? " *" : ""}</Label>
                 <Input value={form.reference} onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value }))} disabled={editingId != null} />
               </div>
+                          ) : null}
+                          {fieldVisible("sku") ? (
               <div className="grid gap-2">
-                <Label>SKU</Label>
+                <Label>{fieldLabel("sku", "SKU")}{fieldRequired("sku") ? " *" : ""}</Label>
                 <Input value={form.sku} onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))} />
               </div>
+                          ) : null}
             </div>
             <div className="grid gap-2">
-              <Label>{productDialogMode === "create" ? "Descrição do Produto/Serviço" : "Nome comercial"}</Label>
+              <Label>
+                {fieldLabel("commercial_name", productDialogMode === "create" ? "Descrição do Produto/Serviço" : "Nome comercial")}
+                {fieldRequired("commercial_name") ? " *" : ""}
+              </Label>
               <div ref={commercialNameFieldWrapRef} className="min-w-0">
                 <Input
                   value={form.commercial_name}
@@ -2348,9 +2461,10 @@ export default function AdminProdutosPage() {
                 {commercialNameSuggestionsPortal}
               </div>
             </div>
+            {fieldVisible("type") ? (
             <div className="grid gap-2 max-w-xs">
               <div className="grid gap-2">
-                <Label>Tipo</Label>
+                <Label>{fieldLabel("type", "Tipo")}{fieldRequired("type") ? " *" : ""}</Label>
                 <Select value={form.type} onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}>
                   <SelectTrigger>
                     <SelectValue />
@@ -2362,6 +2476,7 @@ export default function AdminProdutosPage() {
                 </Select>
               </div>
             </div>
+            ) : null}
                       </>
                     ) : null}
                     {wizardStep === 2 ? (
@@ -3005,6 +3120,92 @@ export default function AdminProdutosPage() {
               <Label>Descrição</Label>
               <Textarea rows={2} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
             </div>
+            {dynamicProductFields.length > 0 ? (
+              <div className="grid gap-3 rounded-lg border p-4">
+                <div>
+                  <h3 className="text-sm font-semibold">Atributos do nicho</h3>
+                  <p className="text-xs text-muted-foreground">Campos definidos em Configuração da loja › Parâmetros de produtos.</p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {dynamicProductFields.map((field) => {
+                    const value = dynamicAttributes[field.field_key]
+                    const label = `${field.label}${field.is_required ? " *" : ""}`
+                    if (field.type === "boolean") {
+                      return (
+                        <label key={field.field_key} className="flex items-center gap-2 rounded-md border p-3 text-sm">
+                          <Checkbox
+                            checked={value === "1" || value === "true"}
+                            disabled={sheetReadOnly}
+                            onCheckedChange={(checked) => updateDynamicAttribute(field.field_key, checked ? "1" : "0")}
+                          />
+                          <span>{label}</span>
+                        </label>
+                      )
+                    }
+                    if (field.type === "select") {
+                      return (
+                        <div key={field.field_key} className="grid gap-2">
+                          <Label>{label}</Label>
+                          <Select
+                            value={typeof value === "string" ? value : ""}
+                            disabled={sheetReadOnly}
+                            onValueChange={(selected) => updateDynamicAttribute(field.field_key, selected)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(field.options ?? []).map((option) => (
+                                <SelectItem key={option} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )
+                    }
+                    if (field.type === "multiselect") {
+                      const selected = Array.isArray(value) ? value : []
+                      return (
+                        <div key={field.field_key} className="grid gap-2">
+                          <Label>{label}</Label>
+                          <div className="rounded-md border p-3">
+                            {(field.options ?? []).map((option) => (
+                              <label key={option} className="flex items-center gap-2 py-1 text-sm">
+                                <Checkbox
+                                  checked={selected.includes(option)}
+                                  disabled={sheetReadOnly}
+                                  onCheckedChange={(checked) =>
+                                    updateDynamicAttribute(
+                                      field.field_key,
+                                      checked ? [...selected, option] : selected.filter((item) => item !== option),
+                                    )
+                                  }
+                                />
+                                <span>{option}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    }
+                    return (
+                      <div key={field.field_key} className="grid gap-2">
+                        <Label>{label}</Label>
+                        <Input
+                          type={field.type === "number" || field.type === "money" ? "number" : field.type === "date" ? "date" : field.type === "color" ? "color" : field.type === "url" ? "url" : "text"}
+                          step={field.type === "money" ? "0.01" : field.type === "number" ? "any" : undefined}
+                          value={typeof value === "string" ? value : ""}
+                          disabled={sheetReadOnly}
+                          onChange={(e) => updateDynamicAttribute(field.field_key, e.target.value)}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : null}
             <div className="grid gap-2 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label>Tag</Label>
